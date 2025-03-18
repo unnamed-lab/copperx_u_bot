@@ -155,3 +155,17 @@ export const formatWallets = (wallets: IGetWallet[] | null) => {
 
   return formattedMessage;
 };
+
+export const setWalletDefault = async (
+  token: string,
+  walletId: string
+): Promise<IGetWallet | null> => {
+  const response = await axios.post(
+    "https://income-api.copperx.io/api/wallets/default",
+    {
+      walletId,
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data as IGetWallet;
+};

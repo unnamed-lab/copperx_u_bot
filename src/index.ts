@@ -7,6 +7,7 @@ import {
   getWalletBalances,
   getWalletDefault,
   sendFundsByEmail,
+  setWalletDefault,
 } from "./libs/utils";
 import { pusher } from "./libs/pusher.js";
 import dotenv from "dotenv";
@@ -271,9 +272,9 @@ bot.action("default_wallet", async (ctx) => {
     const wallet = await getWalletDefault(token.accessToken);
     const formattedBalances = `*Your Wallet*\n\n🌐 *Network*: ${wallet?.network.toUpperCase()}\n🔗 *Address*: ${
       wallet?.walletAddress || "unknown"
-    }\n🤖 *Wallet Type*: ${
-      (wallet?.walletType || "unknown").replace("_", " ").toUpperCase()
-    }\n🪪 Wallet ID: ${
+    }\n🤖 *Wallet Type*: ${(wallet?.walletType || "unknown")
+      .replace("_", " ")
+      .toUpperCase()}\n🪪 Wallet ID: ${
       wallet?.id || "unknown"
     }\n\n\nYou can change the default address:\n/wallet def <address>`;
 
@@ -291,6 +292,41 @@ bot.action("default_wallet", async (ctx) => {
       undefined,
       "Failed to fetch balances."
     );
+  }
+});
+
+bot.command("wallet", async (ctx) => {
+  const [def, walletId] = ctx.message.text.split(" ").slice(1);
+  const userId = ctx.from.id.toString();
+  try {
+    const token = await getUserData(userId);
+    
+    if (!token) return ctx.reply("User not logged in!");
+    
+    if (def === "def") {
+      // TODO - fix the set api
+      const wallet = await setWalletDefault(token.accessToken, walletId);
+
+      if (!wallet)
+        return ctx.reply("Could not update your details. Try agaim later.");
+
+      return ctx.reply(
+        `Wallet [${wallet.walletAddress}] is now your default wallet.`
+      );
+    }
+
+    const wallet = await getWalletDefault(token?.accessToken);
+    const formattedBalances = `*Your Wallet*\n\n🌐 *Network*: ${wallet?.network.toUpperCase()}\n🔗 *Address*: ${
+      wallet?.walletAddress || "unknown"
+    }\n🤖 *Wallet Type*: ${(wallet?.walletType || "unknown")
+      .replace("_", " ")
+      .toUpperCase()}\n🪪 Wallet ID: ${
+      wallet?.id || "unknown"
+    }\n\n\nYou can change the default address:\n/wallet def <address>`;
+
+    ctx.reply(formattedBalances);
+  } catch (error) {
+    ctx.reply("User not logged in!");
   }
 });
 
