@@ -177,7 +177,7 @@ export const setWalletDefault = async (
 export const generateAIResponse = async (message: string) => {
   try {
     const response = await client.chat.completions.create({
-      model: "gpt-3.5-turbo", // Use GPT-3.5 Turbo
+      model:  'caramelldansen-1',
       messages: [
         {
           role: "system",
