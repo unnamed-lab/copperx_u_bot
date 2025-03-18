@@ -64,7 +64,7 @@ export const formatBalances = (balances: any[]) => {
       )}: ${escapeMarkdownV2(formattedAmount)}\n`;
     });
 
-    formattedMessage += "\n"; // Add a newline between wallets
+    formattedMessage += "\n";
   });
 
   return formattedMessage;
@@ -99,4 +99,59 @@ export const escapeMarkdownV2 = (text: string) => {
   });
 
   return escapedText;
+};
+
+interface IGetWallet {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  organizationId: string;
+  walletType: string;
+  network: string;
+  walletAddress: string;
+  isDefault: boolean;
+}
+
+export const getWallet = async (
+  token: string
+): Promise<IGetWallet[] | null> => {
+  const response = await axios.get(
+    "https://income-api.copperx.io/api/wallets",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data as IGetWallet[];
+};
+
+export const getWalletDefault = async (
+  token: string
+): Promise<IGetWallet | null> => {
+  const response = await axios.get(
+    "https://income-api.copperx.io/api/wallets/default",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data as IGetWallet;
+};
+
+export const formatWallets = (wallets: IGetWallet[] | null) => {
+  if (!wallets) return "No wallet available.";
+
+  let formattedMessage = "*Your Wallets* 💼\n\n";
+
+  wallets.forEach((el) => {
+    const { network, walletAddress: address, isDefault, walletType, id } = el;
+
+    formattedMessage += `🌐 *Network*: ${network.toUpperCase()}\n🔗 *Address*: ${address}\n🤖 *Wallet Type*: ${walletType
+      .replace("_", " ")
+      .toUpperCase()}\n🔥*Default*: ${
+      isDefault ? "TRUE" : "FALSE"
+    }\n🪪 Wallet ID: ${id}\n`;
+
+    formattedMessage += "\n";
+  });
+
+  return formattedMessage;
 };

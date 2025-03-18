@@ -2,7 +2,10 @@ import { Markup, Telegraf } from "telegraf";
 import { authenticateOTP, getUserToken, requestOTP } from "./libs/auth";
 import {
   formatBalances,
+  formatWallets,
+  getWallet,
   getWalletBalances,
+  getWalletDefault,
   sendFundsByEmail,
 } from "./libs/utils";
 import { pusher } from "./libs/pusher.js";
@@ -153,7 +156,9 @@ bot.command("me", async (ctx) => {
     const user: UserRedis["user"] = token?.user as UserRedis["user"];
 
     ctx.reply(
-      `*User Profile* 👤\n\n📧 *Email*: ${user.email}\n💳 *Wallet Address*: \n${user.walletAddress}\n🏦 *Wallet Type*: ${user.walletAccountType.toUpperCase()}\n✅ *Status*: ${user.status.toUpperCase()}`
+      `*User Profile* 👤\n\n📧 *Email*: ${user.email}\n💳 *Wallet Address*: \n${
+        user.walletAddress
+      }\n🏦 *Wallet Type*: ${user.walletAccountType.toUpperCase()}\n✅ *Status*: ${user.status.toUpperCase()}`
     );
   } catch (error) {
     ctx.reply("User not logged in!");
@@ -198,6 +203,95 @@ bot.action(/confirm_send_(.+)_(\d+)/, async (ctx) => {
 
 bot.action("cancel_send", (ctx) => {
   ctx.reply("Send funds canceled.");
+});
+
+bot.command("wallets", async (ctx) => {
+  ctx.reply(
+    `Do you want to check your wallets?`,
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback("Yes", `confirm_wallet`),
+        Markup.button.callback("No", "cancel_wallet"),
+      ],
+      [Markup.button.callback("Show Default", "default_wallet")],
+    ])
+  );
+});
+
+bot.action("confirm_wallet", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const token = await getUserData(userId);
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
+
+  if (!ctx.chat) return ctx.reply("Invalid chat.");
+
+  const loadingMessage = await ctx.reply("Fetching wallets...");
+
+  try {
+    const wallets = await getWallet(token.accessToken);
+    const formattedBalances = formatWallets(wallets);
+
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      formattedBalances,
+      { parse_mode: "MarkdownV2" }
+    );
+  } catch (error) {
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      "Failed to fetch balances."
+    );
+  }
+});
+
+bot.action("cancel_wallet", (ctx) => {
+  ctx.reply("Wallets check canceled.");
+});
+
+bot.action("default_wallet", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const token = await getUserData(userId);
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
+
+  if (!ctx.chat) return ctx.reply("Invalid chat.");
+
+  const loadingMessage = await ctx.reply("Fetching wallet...");
+
+  try {
+    const wallet = await getWalletDefault(token.accessToken);
+    const formattedBalances = `*Your Wallet*\n\n🌐 *Network*: ${wallet?.network.toUpperCase()}\n🔗 *Address*: ${
+      wallet?.walletAddress || "unknown"
+    }\n🤖 *Wallet Type*: ${
+      (wallet?.walletType || "unknown").replace("_", " ").toUpperCase()
+    }\n🪪 Wallet ID: ${
+      wallet?.id || "unknown"
+    }\n\n\nYou can change the default address:\n/wallet def <address>`;
+
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      formattedBalances,
+      { parse_mode: "Markdown" }
+    );
+  } catch (error) {
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      "Failed to fetch balances."
+    );
+  }
 });
 
 /////////////////////////////////////////////
