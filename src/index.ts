@@ -1,8 +1,9 @@
-import { Markup, Telegraf } from "telegraf";
+import { Context, Markup, Telegraf } from "telegraf";
 import { authenticateOTP, getUserToken, requestOTP } from "./libs/auth";
 import {
   formatBalances,
   formatWallets,
+  generateAIResponse,
   getWallet,
   getWalletBalances,
   getWalletDefault,
@@ -332,6 +333,29 @@ bot.command("wallet", async (ctx) => {
 
 /////////////////////////////////////////////
 /////////////////////////////////////////////
+
+// Bot AI functionality
+bot.on("text", async (ctx) => {
+  const message = ctx.message.text;
+
+  // Ignore commands
+  if (message.startsWith("/")) {
+    return;
+  }
+
+  // Show typing indicator
+  await ctx.replyWithChatAction("typing");
+
+  try {
+    const aiResponse = await generateAIResponse(message);
+    ctx.reply(aiResponse);
+  } catch (error) {
+    console.error("Error generating AI response:", error);
+    ctx.reply(
+      "Sorry, I'm having trouble generating a response. Please try again later."
+    );
+  }
+});
 
 bot.catch((err, ctx) => {
   console.error("Error:", err);
