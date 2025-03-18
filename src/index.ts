@@ -20,6 +20,7 @@ import {
   UserRedis,
 } from "./libs/redis";
 import { setSession } from "./libs/storage";
+import QRCode from "qrcode";
 
 dotenv.config();
 
@@ -329,6 +330,75 @@ bot.command("wallet", async (ctx) => {
   } catch (error) {
     ctx.reply("User not logged in!");
   }
+});
+
+bot.command("deposit", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  try {
+    // Get user data from Redis/session
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    // Get user's wallet address from your system
+    const user: UserRedis["user"] = token.user;
+    const walletAddress = user.walletAddress;
+    const network = user.walletAccountType.toUpperCase();
+
+    if (!walletAddress) {
+      return ctx.reply("No wallet address found for your account.");
+    }
+
+    console.log({walletAddress});
+
+    // Generate QR Code
+    const qrCode = await QRCode.toBuffer(walletAddress, {
+      errorCorrectionLevel: "H",
+      type: "png",
+      width: 400,
+      margin: 2,
+    });
+
+    // Create caption with wallet address
+    const caption =
+      `📥 **Deposit Address**\n\n` +
+      `Network: ${network}\n` +
+      `Address: \`${walletAddress}\`\n\n` +
+      `Scan the QR code or copy the address above to send funds`;
+
+    // Send QR code and address
+    await ctx.replyWithPhoto(
+      { source: qrCode },
+      {
+        caption: caption,
+        parse_mode: "MarkdownV2",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Copy Address",
+                callback_data: `copy_address_${walletAddress}`,
+              },
+            ],
+          ],
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Deposit error:", error);
+    ctx.reply("Failed to generate deposit address. Please try again.");
+  }
+});
+
+// Handle copy address button
+bot.action(/copy_address_(.+)/, async (ctx) => {
+  const walletAddress = ctx.match[1];
+  await ctx.answerCbQuery();
+  await ctx.reply(`Here's your wallet address:\n\`${walletAddress}\``, {
+    parse_mode: "MarkdownV2",
+  });
 });
 
 /////////////////////////////////////////////
