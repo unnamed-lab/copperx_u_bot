@@ -23,14 +23,21 @@ import {
 import { setSession } from "./libs/storage";
 import QRCode from "qrcode";
 import {
+  Country,
+  CreateOfframpTransferDto,
   depositFunds,
   depositFundsPayload,
   formatAmount,
+  PurposeCode,
+  RecipientRelationship,
   sendFunds,
   sendFundsPayload,
+  SourceOfFunds,
   validCurrencies,
   validPurposeCodes,
+  validRecipientRelationships,
   validSourceOfFunds,
+  withdrawFunds,
 } from "./libs/funds";
 
 dotenv.config();
@@ -432,7 +439,9 @@ bot.command("deposit", async (ctx) => {
   }
 
   // Validate source of funds
-  if (!validSourceOfFunds.includes(sourceOfFunds.toLowerCase())) {
+  if (
+    !validSourceOfFunds.includes(sourceOfFunds.toLowerCase() as SourceOfFunds)
+  ) {
     return ctx.reply(
       `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
         ", "
@@ -547,6 +556,145 @@ bot.action(/confirm_deposit_(.+)_(\d+)_(.+)/, async (ctx) => {
 // Handle cancellation
 bot.action("cancel_deposit", (ctx) => {
   ctx.reply("Deposit canceled.");
+});
+
+import axios from "axios";
+
+// Command handler for /api/transfers/offramp
+// TODO - Test thoroughly later
+bot.command("withdraw", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const token = await getUserData(userId);
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
+
+  // Extract arguments from the command
+  const args = ctx.message.text.split(" ").slice(1);
+  if (args.length < 7) {
+    return ctx.reply(
+      "Usage: /offramp <invoiceNumber> <invoiceUrl> <purposeCode> <sourceOfFunds> <recipientRelationship> <quotePayload> <quoteSignature> <preferredWalletId> <name> <businessName> <email> <country> <sourceOfFundsFile> <note>"
+    );
+  }
+
+  const [
+    invoiceNumber,
+    invoiceUrl,
+    purposeCode,
+    sourceOfFunds,
+    recipientRelationship,
+    quotePayload,
+    quoteSignature,
+    preferredWalletId,
+    name,
+    businessName,
+    email,
+    country,
+    sourceOfFundsFile,
+    note,
+  ] = args;
+
+  // Validate purposeCode, sourceOfFunds, and recipientRelationship
+  if (!validPurposeCodes.includes(purposeCode as PurposeCode)) {
+    return ctx.reply(
+      `Invalid purposeCode. Supported values: ${validPurposeCodes.join(", ")}`
+    );
+  }
+
+  if (!validSourceOfFunds.includes(sourceOfFunds as SourceOfFunds)) {
+    return ctx.reply(
+      `Invalid sourceOfFunds. Supported values: ${validSourceOfFunds.join(
+        ", "
+      )}`
+    );
+  }
+
+  if (
+    !validRecipientRelationships.includes(
+      recipientRelationship as RecipientRelationship
+    )
+  ) {
+    return ctx.reply(
+      `Invalid recipientRelationship. Supported values: ${validRecipientRelationships.join(
+        ", "
+      )}`
+    );
+  }
+
+  // Prepare the request payload
+  const payload: CreateOfframpTransferDto = {
+    invoiceNumber,
+    invoiceUrl,
+    purposeCode: purposeCode as PurposeCode,
+    sourceOfFunds: sourceOfFunds as SourceOfFunds,
+    recipientRelationship: recipientRelationship as RecipientRelationship,
+    quotePayload,
+    quoteSignature,
+    preferredWalletId,
+    customerData: {
+      name,
+      businessName,
+      email,
+      country: country as Country,
+    },
+    sourceOfFundsFile,
+    note,
+  };
+
+  try {
+    // Format the response
+    const transfer = await withdrawFunds(token.accessToken, payload);
+    const transferDetails = `
+      ✅ **Off-Ramp Transfer Initiated Successfully\\!**
+
+      **Transfer ID**: \`${transfer.id}\`
+      **Status**: ${transfer.status}
+      **Amount**: ${Number(transfer.amount) / 100_000_000} ${transfer.currency}
+      **Source Country**: ${transfer.sourceCountry}
+      **Destination Country**: ${transfer.destinationCountry}
+      **Destination Currency**: ${transfer.destinationCurrency}
+
+      **Source Account**:
+      \\- **Type**: ${transfer.sourceAccount.type}
+      \\- **Wallet Address**: \`${transfer.sourceAccount.walletAddress}\`
+      \\- **Network**: ${transfer.sourceAccount.network}
+
+      **Destination Account**:
+      \\- **Type**: ${transfer.destinationAccount.type}
+      \\- **Wallet Address**: \`${transfer.destinationAccount.walletAddress}\`
+      \\- **Network**: ${transfer.destinationAccount.network}
+
+      **Fees**: ${transfer.totalFee} ${transfer.feeCurrency}
+    `;
+
+    // Send the transfer details
+    await ctx.replyWithMarkdownV2(transferDetails, {
+      link_preview_options: { is_disabled: true },
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Open Withdrawal Link",
+              url: transfer.paymentUrl,
+            },
+          ],
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Off-Ramp Transfer error:", error);
+
+    if (error instanceof Error && (error as any).response) {
+      ctx.reply(
+        `❌ Failed to initiate off-ramp transfer: ${
+          (error as any).response.data.message || "Unknown error"
+        }`
+      );
+    } else {
+      ctx.reply("❌ An error occurred. Please try again later.");
+    }
+  }
 });
 
 /////////////////////////////////////////////
