@@ -1,4 +1,6 @@
 import axios from "axios";
+import { Markup } from "telegraf";
+import { escapeMarkdownV2 } from "./utils";
 
 export const validCurrencies = [
   "USD",
@@ -500,6 +502,30 @@ export interface PayeeBankAccountDto {
   swiftCode: string; // SWIFT/BIC code for international transfers
 }
 
+interface Transfer {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  type: string;
+  amount: string;
+  currency: string;
+  sourceAccount: {
+    walletAddress: string;
+  };
+  destinationAccount: {
+    walletAddress: string;
+  };
+}
+
+interface TransfersResponse {
+  page: number;
+  limit: number;
+  count: number;
+  hasMore: boolean;
+  data: Transfer[];
+}
+
 // Define the sendFundsPayload interface
 export interface sendFundsPayload {
   walletAddress: string | undefined;
@@ -758,3 +784,82 @@ export const fetchPayee = async (token: string, text: string) => {
 
   return payee;
 };
+
+// Helper function to validate the page number
+export function validatePage(page: number, totalPages: number): number {
+  if (page < 1) return 1;
+  if (page > totalPages) return totalPages;
+  return page;
+}
+
+// Helper function to create pagination buttons
+export function createPaginationKeyboard(
+  response: TransfersResponse,
+  currentPage: number
+): any[] {
+  const keyboard = [];
+
+  if (currentPage > 1) {
+    keyboard.push(Markup.button.callback("⬅️ Previous Page", "prev_page"));
+  }
+
+  keyboard.push(Markup.button.callback("🔄 Refresh", "refresh_page"));
+
+  if (response.hasMore) {
+    keyboard.push(Markup.button.callback("Next Page ➡️", "next_page"));
+  }
+
+  return [keyboard]; // Wrap in an array to create a single row
+}
+
+// Helper function to format the transfers data into a message
+export function formatTransfersMessage(
+  response: TransfersResponse,
+  currentPage: number
+): string {
+  let message = escapeMarkdownV2(`📋 *Transfers (Page ${currentPage})*\n\n`);
+
+  if (response.data.length === 0) {
+    return "No transfers found.";
+  }
+
+  response.data.forEach((transfer, index) => {
+    message += escapeMarkdownV2(
+      `**Transfer ${index + 1}:**\n` +
+        `- 🆔 ID: \`${transfer.id}\`\n` +
+        `- 📅 Created: ${new Date(transfer.createdAt).toLocaleString()}\n` +
+        `- 🟢 Status: ${transfer.status}\n` +
+        `- 💸 Type: ${transfer.type}\n` +
+        `- 💰 Amount: ${Number(transfer.amount) / 100_000_000} ${
+          transfer.currency
+        }\n` +
+        `- 📤 Source: \`${transfer.sourceAccount.walletAddress}\`\n` +
+        `- 📥 Destination: \`${transfer.destinationAccount.walletAddress}\`\n\n`
+    );
+  });
+
+  return message;
+}
+
+// Update the fetchTransfers function to handle invalid pages
+export async function fetchTransfers(
+  token: string,
+  page: number,
+  limit: number
+): Promise<TransfersResponse> {
+  const response = await axios.get<TransfersResponse>(
+    "https://income-api.copperx.io/api/transfers",
+    {
+      params: { page, limit },
+      headers: {
+        Authorization: `Bearer ${token}`, // Replace with your auth token
+      },
+    }
+  );
+
+  // Ensure the page number is valid
+  const totalPages = Math.ceil(response.data.count / limit);
+  response.data.page = validatePage(page, totalPages);
+
+  return response.data;
+}
