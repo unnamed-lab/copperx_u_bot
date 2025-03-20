@@ -1,6 +1,7 @@
 import { Context, Markup, Telegraf } from "telegraf";
 import { authenticateOTP, getUserToken, requestOTP } from "./libs/auth";
 import {
+  escapeMarkdownV2,
   formatBalances,
   formatWallets,
   generateAIResponse,
@@ -21,6 +22,16 @@ import {
 } from "./libs/redis";
 import { setSession } from "./libs/storage";
 import QRCode from "qrcode";
+import {
+  depositFunds,
+  depositFundsPayload,
+  formatAmount,
+  sendFunds,
+  sendFundsPayload,
+  validCurrencies,
+  validPurposeCodes,
+  validSourceOfFunds,
+} from "./libs/funds";
 
 dotenv.config();
 
@@ -302,9 +313,9 @@ bot.command("wallet", async (ctx) => {
   const userId = ctx.from.id.toString();
   try {
     const token = await getUserData(userId);
-    
+
     if (!token) return ctx.reply("User not logged in!");
-    
+
     if (def === "def") {
       // TODO - fix the set api
       const wallet = await setWalletDefault(token.accessToken, walletId);
@@ -332,7 +343,7 @@ bot.command("wallet", async (ctx) => {
   }
 });
 
-bot.command("deposit", async (ctx) => {
+bot.command("receive", async (ctx) => {
   const userId = ctx.from.id.toString();
   try {
     // Get user data from Redis/session
@@ -351,7 +362,7 @@ bot.command("deposit", async (ctx) => {
       return ctx.reply("No wallet address found for your account.");
     }
 
-    console.log({walletAddress});
+    console.log({ walletAddress });
 
     // Generate QR Code
     const qrCode = await QRCode.toBuffer(walletAddress, {
@@ -399,6 +410,143 @@ bot.action(/copy_address_(.+)/, async (ctx) => {
   await ctx.reply(`Here's your wallet address:\n\`${walletAddress}\``, {
     parse_mode: "MarkdownV2",
   });
+});
+
+// Deposit command
+bot.command("deposit", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const args = ctx.message.text.split(" ").slice(1);
+
+  // Validate input
+  if (args.length < 2) {
+    return ctx.reply(
+      "Usage: /deposit <amount> <depositChainId> <sourceOfFunds>"
+    );
+  }
+
+  const [amount, depositChainId, sourceOfFunds = "savings"] = args;
+
+  // Validate amount
+  if (isNaN(parseFloat(amount))) {
+    return ctx.reply("Invalid amount. Please provide a valid number.");
+  }
+
+  // Validate source of funds
+  if (!validSourceOfFunds.includes(sourceOfFunds.toLowerCase())) {
+    return ctx.reply(
+      `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
+        ", "
+      )}`
+    );
+  }
+
+  // Validate deposit chain ID
+  if (isNaN(parseInt(depositChainId))) {
+    return ctx.reply(
+      "Invalid deposit chain ID. Please provide a valid number."
+    );
+  }
+
+  // Ask for confirmation
+  await ctx.reply(
+    `Are you sure you want to deposit ${amount} USD (Source: ${sourceOfFunds}, Chain ID: ${depositChainId})?`,
+    Markup.inlineKeyboard([
+      Markup.button.callback(
+        "Yes",
+        `confirm_deposit_${amount}_${depositChainId}_${sourceOfFunds}`
+      ),
+      Markup.button.callback("No", "cancel_deposit"),
+    ])
+  );
+});
+
+// Handle confirmation
+bot.action(/confirm_deposit_(.+)_(\d+)_(.+)/, async (ctx) => {
+  const [amount, depositChainId, sourceOfFunds = "savings"] =
+    ctx.match.slice(1); // Extract arguments from the regex match
+  const userId = ctx.from.id.toString();
+
+  try {
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    // Construct the payload
+    const payload = {
+      amount: formatAmount(amount),
+      sourceOfFunds: sourceOfFunds,
+      depositChainId: parseInt(depositChainId),
+    };
+
+    console.log("Payload:", payload); // Debugging: Log the payload
+
+    const deposit = await depositFunds(
+      token.accessToken,
+      payload as unknown as depositFundsPayload
+    );
+
+    console.info("Response", deposit);
+
+    const dash = escapeMarkdownV2("-");
+
+    // Format the deposit details
+    const depositDetails = `
+    ✅ **${escapeMarkdownV2("Deposit Initiated Successfully!")}**
+
+    **Deposit ID**: \`${deposit.id}\`
+    **Status**: ${deposit.status}
+    **Amount**: ${Number(deposit.amount) / 100_000_000} ${deposit.currency}
+    **Chain ID**: ${depositChainId}
+
+    **Source Account**:
+    ${dash} **Type**: ${deposit.sourceAccount.type}
+    ${dash} **Wallet Address**: \`${deposit.sourceAccount.walletAddress}\`
+    ${dash} **Network**: ${deposit.sourceAccount.network}
+
+    **Destination Account**:
+    ${dash} **Type**: ${deposit.destinationAccount.type}
+    ${dash} **Wallet Address**: \`${deposit.destinationAccount.walletAddress}\`
+    ${dash} **Network**: ${deposit.destinationAccount.network}
+
+    **Fees**: ${deposit.totalFee} ${deposit.feeCurrency}
+        `;
+
+    // Send the deposit details
+    await ctx.replyWithMarkdownV2(depositDetails, {
+      link_preview_options: { is_disabled: true },
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "Open Deposit Link",
+              url: deposit.transactions[0].depositUrl, // Use the deposit URL from the response
+            },
+          ],
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Deposit error:", error);
+
+    console.error("Fund transfer error:", error);
+
+    if (error instanceof Error && (error as any).response) {
+      ctx.reply(
+        `❌ Failed to deposit funds: ${
+          (error as any).response.data.message || "Unknown error"
+        }`
+      );
+    } else {
+      ctx.reply("❌ An error occurred. Please try again later.");
+    }
+  }
+});
+
+// Handle cancellation
+bot.action("cancel_deposit", (ctx) => {
+  ctx.reply("Deposit canceled.");
 });
 
 /////////////////////////////////////////////
