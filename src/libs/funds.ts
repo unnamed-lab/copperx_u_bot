@@ -77,6 +77,68 @@ export const validRecipientRelationships: RecipientRelationship[] = [
   "other",
 ];
 
+export const validCountries: Country[] = [
+  "usa",
+  "ind",
+  "are",
+  "idn",
+  "pak",
+  "sgp",
+  "esp",
+  "can",
+  "cym",
+  "lbn",
+  "mys",
+  "pan",
+  "tur",
+  "vct",
+  "vgb",
+  "vnm",
+  "bel",
+  "tha",
+  "hkg",
+  "aut",
+  "hrv",
+  "cyp",
+  "est",
+  "fin",
+  "fra",
+  "gre",
+  "irl",
+  "ita",
+  "lva",
+  "ltu",
+  "lux",
+  "mlt",
+  "nld",
+  "prt",
+  "svk",
+  "svn",
+  "deu",
+  "bgd",
+  "phl",
+  "khm",
+  "aus",
+  "gbr",
+  "npl",
+  "lka",
+  "ben",
+  "cmr",
+  "gha",
+  "ken",
+  "moz",
+  "sen",
+  "tza",
+  "uga",
+  "nzl",
+  "kor",
+  "mmr",
+  "jpn",
+  "bra",
+  "chn",
+  "none",
+];
+
 enum CURRENCIES {
   "USD",
   "INR",
@@ -132,6 +194,11 @@ enum PURPOSECODE {
   "family",
   "home_improvement",
   "reimbursement",
+}
+
+enum BankAccountType {
+  SAVINGS = "Savings",
+  CHECKING = "Checking",
 }
 
 // Define the types for the enums
@@ -378,6 +445,62 @@ export interface TransferWithAccountDto {
   senderDisplayName: string;
 }
 
+// Define the CreateWalletWithdrawTransferDto interface
+export interface CreateWalletWithdrawTransferDto {
+  walletAddress: string;
+  amount: string;
+  purposeCode: PurposeCode;
+  currency?: Currency;
+}
+
+// Define the CreateSendTransferDto interface
+export interface CreateSendTransferDto {
+  walletAddress?: string;
+  email?: string;
+  payeeId?: string;
+  amount: string;
+  purposeCode: PurposeCode;
+  currency?: Currency;
+}
+
+export interface PayeePaginatedResponse {
+  page: number; // Page number, starts from 1
+  limit: number; // Number of items per page
+  count: number; // Total count of items
+  hasMore: boolean; // Indicates if there are more items to fetch
+  data: PayeeDto[]; // Array of PayeeDto objects
+}
+
+export interface PayeeDto {
+  id: string; // Unique identifier
+  createdAt: string; // Date-time string for creation time
+  updatedAt: string; // Date-time string for last update time
+  organizationId: string; // Organization ID
+  nickName: string; // Nickname of the payee
+  firstName: string; // First name of the payee
+  lastName: string; // Last name of the payee
+  email: string; // Email of the payee
+  phoneNumber: string; // Phone number with country code (without + sign)
+  displayName: string; // Display name of the payee
+  bankAccount: PayeeBankAccountDto; // Bank account details
+  isGuest: boolean; // Indicates if the payee is a guest
+  hasBankAccount: boolean; // Indicates if the payee has a bank account
+}
+
+export interface PayeeBankAccountDto {
+  country: Country; // Country of the bank account
+  bankName: string; // Bank name or branch name
+  bankAddress: string; // Bank location or branch address
+  type: TransferAccountType; // Bank transfer method used for this account
+  bankAccountType: BankAccountType; // Savings or checking account
+  bankRoutingNumber: string; // IFSC, routing number, or SWIFT code
+  bankAccountNumber: string; // IBAN or account number
+  bankBeneficiaryName: string; // Name of the account holder
+  bankBeneficiaryAddress: string; // Address of the account holder
+  swiftCode: string; // SWIFT/BIC code for international transfers
+}
+
+// Define the sendFundsPayload interface
 export interface sendFundsPayload {
   walletAddress: string | undefined;
   email: string | undefined;
@@ -541,25 +664,97 @@ export const depositFunds = async (
   return response.data as DepositResponse;
 };
 
+export const withdrawFunds = async (
+  token: string,
+  payload: CreateOfframpTransferDto
+) => {
+  const response = await axios.post<TransferWithAccountDto>(
+    "https://income-api.copperx.io/api/transfers/offramp",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
-export const withdrawFunds = async (token:string, payload: CreateOfframpTransferDto) => {
-   const response = await axios.post<TransferWithAccountDto>(
-     "https://income-api.copperx.io/api/transfers/offramp",
-     payload,
-     {
-       headers: {
-         Authorization: `Bearer ${token}`,
-       },
-     }
-   );
-  
-  return response.data
-}
+  return response.data;
+};
+
+export const withdrawFundsWallet = async (
+  token: string,
+  payload: CreateWalletWithdrawTransferDto
+) => {
+  const response = await axios.post<TransferWithAccountDto>(
+    "https://income-api.copperx.io/api/transfers/wallet-withdraw",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
+
+export const withdrawFundsEmail = async (
+  token: string,
+  payload: CreateSendTransferDto
+) => {
+  const response = await axios.post<TransferWithAccountDto>(
+    "https://income-api.copperx.io/api/transfers/send",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
 
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
 
-  export const formatAmount = (amount: string, isString: boolean = true) => {
-    const formatAmount = (Number(amount) || 0) * 100_000_000;
-    return isString ? formatAmount.toString() : formatAmount;
-  };
+export const formatAmount = (amount: string, isString: boolean = true) => {
+  const formatAmount = (Number(amount) || 0) * 100_000_000;
+  return isString ? formatAmount.toString() : formatAmount;
+};
+
+export const fetchPayeeId = async (token: string, text: string) => {
+  const searchQuery = text.split("@")[0];
+  const response = await axios.get<PayeePaginatedResponse>(
+    `https://income-api.copperx.io/api/payees?limit=20&searchText=${searchQuery}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const payee = response.data.data.find((el) => el.email === text);
+
+  if (!payee) return "";
+
+  return payee.id;
+};
+
+export const fetchPayee = async (token: string, text: string) => {
+  const searchQuery = text.split("@")[0];
+  const response = await axios.get<PayeePaginatedResponse>(
+    `https://income-api.copperx.io/api/payees?limit=20&searchText=${searchQuery}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const payee = response.data.data.find((el) => el.email === text);
+
+  if (!payee) return null;
+
+  return payee;
+};
