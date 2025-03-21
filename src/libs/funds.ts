@@ -829,13 +829,16 @@ export const fetchPayee = async (token: string, text: string) => {
 };
 
 export async function getAllPayee(token: string) {
-  const response = await axios.get<PayeeDto[]>("/api/payees", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const response = await axios.get<PayeePaginatedResponse>(
+    "https://income-api.copperx.io/api/payees?limit=50",
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
-  return response.data
+  return response.data.data;
 }
 
 export async function createPayee(

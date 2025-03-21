@@ -200,3 +200,8 @@ export const generateAIResponse = async (message: string) => {
     return "Sorry, something went wrong. Please try again later.";
   }
 };
+
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
