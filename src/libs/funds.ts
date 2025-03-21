@@ -473,22 +473,6 @@ export interface PayeePaginatedResponse {
   data: PayeeDto[]; // Array of PayeeDto objects
 }
 
-export interface PayeeDto {
-  id: string; // Unique identifier
-  createdAt: string; // Date-time string for creation time
-  updatedAt: string; // Date-time string for last update time
-  organizationId: string; // Organization ID
-  nickName: string; // Nickname of the payee
-  firstName: string; // First name of the payee
-  lastName: string; // Last name of the payee
-  email: string; // Email of the payee
-  phoneNumber: string; // Phone number with country code (without + sign)
-  displayName: string; // Display name of the payee
-  bankAccount: PayeeBankAccountDto; // Bank account details
-  isGuest: boolean; // Indicates if the payee is a guest
-  hasBankAccount: boolean; // Indicates if the payee has a bank account
-}
-
 export interface PayeeBankAccountDto {
   country: Country; // Country of the bank account
   bankName: string; // Bank name or branch name
@@ -502,7 +486,66 @@ export interface PayeeBankAccountDto {
   swiftCode: string; // SWIFT/BIC code for international transfers
 }
 
-interface Transfer {
+export interface CreatePayeeDto {
+  nickName: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  phoneNumber?: string;
+  bankAccount: {
+    country: string;
+    bankName: string;
+    bankAddress: string;
+    type: string;
+    bankAccountType: string;
+    bankRoutingNumber?: string;
+    bankAccountNumber: string;
+    bankBeneficiaryName: string;
+    bankBeneficiaryAddress: string;
+    swiftCode?: string;
+  };
+}
+
+export interface PayeeDto {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  organizationId: string;
+  nickName: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  phoneNumber?: string;
+  displayName: string;
+  bankAccount: {
+    country: string;
+    bankName: string;
+    bankAddress: string;
+    type: string;
+    bankAccountType: string;
+    bankRoutingNumber?: string;
+    bankAccountNumber: string;
+    bankBeneficiaryName: string;
+    bankBeneficiaryAddress: string;
+    swiftCode?: string;
+  };
+  isGuest: boolean;
+  hasBankAccount: boolean;
+}
+
+export interface UpdatePayeeDto {
+  nickName: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+}
+
+export interface SuccessDto {
+  message: string;
+  statusCode: number;
+}
+
+export interface Transfer {
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -518,7 +561,7 @@ interface Transfer {
   };
 }
 
-interface TransfersResponse {
+export interface TransfersResponse {
   page: number;
   limit: number;
   count: number;
@@ -770,7 +813,7 @@ export const fetchPayeeId = async (token: string, text: string) => {
 export const fetchPayee = async (token: string, text: string) => {
   const searchQuery = text.split("@")[0];
   const response = await axios.get<PayeePaginatedResponse>(
-    `https://income-api.copperx.io/api/payees?limit=20&searchText=${searchQuery}`,
+    `https://income-api.copperx.io/api/payees?limit=5&searchText=${searchQuery}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -784,6 +827,76 @@ export const fetchPayee = async (token: string, text: string) => {
 
   return payee;
 };
+
+export async function getAllPayee(token: string) {
+  const response = await axios.get<PayeeDto[]>("/api/payees", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data
+}
+
+export async function createPayee(
+  token: string,
+  payload: CreatePayeeDto
+): Promise<PayeeDto> {
+  const response = await axios.post<PayeeDto>(
+    "https://income-api.copperx.io/api/payees",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function getPayee(token: string, id: string): Promise<PayeeDto> {
+  const response = await axios.get<PayeeDto>(
+    `https://income-api.copperx.io/api/payees/${id}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function updatePayee(
+  token: string,
+  id: string,
+  payload: UpdatePayeeDto
+): Promise<PayeeDto> {
+  const response = await axios.put<PayeeDto>(
+    `https://income-api.copperx.io/api/payees/${id}`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function deletePayee(
+  token: string,
+  id: string
+): Promise<SuccessDto> {
+  const response = await axios.delete<SuccessDto>(
+    `https://income-api.copperx.io/api/payees/${id}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+}
 
 // Helper function to validate the page number
 export function validatePage(page: number, totalPages: number): number {
@@ -826,15 +939,15 @@ export function formatTransfersMessage(
   response.data.forEach((transfer, index) => {
     message += escapeMarkdownV2(
       `**Transfer ${index + 1}:**\n` +
-        `- 🆔 ID: \`${transfer.id}\`\n` +
+        `- 🆔 ID: ${transfer.id}\n` +
         `- 📅 Created: ${new Date(transfer.createdAt).toLocaleString()}\n` +
         `- 🟢 Status: ${transfer.status}\n` +
         `- 💸 Type: ${transfer.type}\n` +
         `- 💰 Amount: ${Number(transfer.amount) / 100_000_000} ${
           transfer.currency
         }\n` +
-        `- 📤 Source: \`${transfer.sourceAccount.walletAddress}\`\n` +
-        `- 📥 Destination: \`${transfer.destinationAccount.walletAddress}\`\n\n`
+        `- 📤 Source: ${transfer.sourceAccount.walletAddress}\n` +
+        `- 📥 Destination: ${transfer.destinationAccount.walletAddress}\n\n`
     );
   });
 
