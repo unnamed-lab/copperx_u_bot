@@ -141,6 +141,65 @@ export const validCountries: Country[] = [
   "none",
 ];
 
+// Define the list of currencies
+export const currencies: Currency[] = [
+  "USD",
+  "INR",
+  "AED",
+  "IDR",
+  "PKR",
+  "SGD",
+  "EUR",
+  "MYR",
+  "CAD",
+  "KYD",
+  "LBP",
+  "TRY",
+  "XCD",
+  "VND",
+  "THB",
+  "HKD",
+  "BDT",
+  "PHP",
+  "KHR",
+  "AUD",
+  "GBP",
+  "NPR",
+  "LKR",
+  "XOF",
+  "XAF",
+  "GHS",
+  "KES",
+  "MZN",
+  "TZS",
+  "UGX",
+  "NZD",
+  "KRW",
+  "MMK",
+  "JPY",
+  "BRL",
+  "CNY",
+  "USDC",
+  "USDT",
+  "DAI",
+  "ETH",
+  "USDCE",
+  "STRK",
+];
+
+// Define the list of purpose codes
+export const purposeCodes: PurposeCode[] = [
+  "self",
+  "salary",
+  "gift",
+  "income",
+  "saving",
+  "education_support",
+  "family",
+  "home_improvement",
+  "reimbursement",
+];
+
 enum CURRENCIES {
   "USD",
   "INR",
@@ -979,3 +1038,24 @@ export async function fetchTransfers(
 
   return response.data;
 }
+
+// Function to split currencies into chunks of 3
+export const chunkCurrencies = (
+  currencies: Currency[],
+  size: number
+): Currency[][] => {
+  const chunks = [];
+  for (let i = 0; i < currencies.length; i += size) {
+    chunks.push(currencies.slice(i, i + size));
+  }
+  return chunks;
+};
+
+// Function to split purpose codes into chunks of 2
+export const chunkPurposeCodes = (purposeCodes: PurposeCode[], size: number): PurposeCode[][] => {
+  const chunks = [];
+  for (let i = 0; i < purposeCodes.length; i += size) {
+    chunks.push(purposeCodes.slice(i, i + size));
+  }
+  return chunks;
+};
