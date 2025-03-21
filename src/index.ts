@@ -140,7 +140,7 @@ bot.action("withdraw", (ctx) => {
 // Help command
 bot.command("help", (ctx) => {
   ctx.reply(
-    "🛠️ *Copperx Bot Help* 🛠️\n\n" +
+    escapeMarkdownV2("🛠️ *Copperx Bot Help* 🛠️\n\n" +
       "Here are the commands you can use:\n\n" +
       "🔐 *Authentication*\n" +
       "`/login <email>` - Log in with your email.\n" +
@@ -162,7 +162,7 @@ bot.command("help", (ctx) => {
       "📄 *Transactions*\n" +
       "`/transfers` - View your transaction history.\n\n" +
       "❓ *Support*\n" +
-      "Need help? Click the button below to visit our support page.",
+      "Need help? Click the button below to visit our support page."),
     {
       parse_mode: "MarkdownV2",
       reply_markup: Markup.inlineKeyboard([
