@@ -139,14 +139,42 @@ bot.action("withdraw", (ctx) => {
 
 // Help command
 bot.command("help", (ctx) => {
-  ctx.reply(`
-    Available commands:
-    /start - Start the bot
-    /help - Show help
-    /balance - Check wallet balances
-    /send - Send funds
-    /withdraw - Withdraw funds
-  `);
+  ctx.reply(
+    "🛠️ *Copperx Bot Help* 🛠️\n\n" +
+      "Here are the commands you can use:\n\n" +
+      "🔐 *Authentication*\n" +
+      "`/login <email>` - Log in with your email.\n" +
+      "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
+      "💼 *Wallet Management*\n" +
+      "`/balance` - Check your wallet balances.\n" +
+      "`/wallets` - View your wallet details.\n" +
+      "`/wallet def <address>` - Set a default wallet.\n" +
+      "`/receive` - Get your wallet address and QR code.\n\n" +
+      "💸 *Transfers*\n" +
+      "`/send <email> <amount>` - Send funds to an email.\n" +
+      "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
+      "`/withdraw` - Withdraw funds to your bank account.\n\n" +
+      "📋 *Beneficiaries*\n" +
+      "`/beneficiaries` - View your saved beneficiaries.\n" +
+      "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
+      "`/update-beneficiary <id>` - Update a beneficiary's details.\n" +
+      "`/delete-beneficiary <id>` - Delete a beneficiary.\n\n" +
+      "📄 *Transactions*\n" +
+      "`/transfers` - View your transaction history.\n\n" +
+      "❓ *Support*\n" +
+      "Need help? Click the button below to visit our support page.",
+    {
+      parse_mode: "MarkdownV2",
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.url(
+            "Copperx Support",
+            "https://t.me/copperxcommunity/2183"
+          ),
+        ],
+      ]).reply_markup,
+    }
+  );
 });
 
 bot.command("login", async (ctx) => {
