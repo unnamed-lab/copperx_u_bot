@@ -136,6 +136,7 @@ bot.action("help", (ctx) => {
         "📋 *Beneficiaries*\n" +
         "`/beneficiaries` - View your saved beneficiaries.\n" +
         "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
+        "`/addBeneficiary` - Add a beneficiary's details.\n" +
         "`/updateBeneficiary <id>` - Update a beneficiary's details.\n" +
         "`/deleteBeneficiary <id>` - Delete a beneficiary.\n\n" +
         "📄 *Transactions*\n" +
