@@ -62,6 +62,7 @@ import {
   withdrawFundsEmail,
   withdrawFundsWallet,
 } from "./libs/funds";
+import rateLimit from "telegraf-ratelimit";
 
 dotenv.config();
 
@@ -76,18 +77,89 @@ interface SessionData {
 // Extend the context type to include session data
 interface MyContext extends Context {
   session?: SessionData;
+  req?: any;
+  res?: any;
 }
 
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_BOT_TOKEN!, {
   telegram: { agent: undefined, webhookReply: true },
 });
 
-bot.use((ctx, next) => {
+// Configure rate limiting
+const limitConfig = {
+  window: 3000, // 3 seconds
+  limit: 1, // Limit each user to 1 message per window
+  onLimitExceeded: (ctx: Context) => {
+    ctx.reply("Please don't spam! 🛑");
+  },
+  keyGenerator: (ctx: Context) => ctx.from?.id.toString() || "global", // Unique key for each user
+  // Exclude /help from rate limiting
+  skip: (ctx: Context) =>
+    ctx.message &&
+    "text" in ctx.message &&
+    ctx.message.text.startsWith("/help"),
+};
+
+bot.use(async (ctx, next) => {
   if (!ctx.session) {
     ctx.session = { isTransferProcessActive: false };
   }
+
+  const userId = ctx.from?.id.toString();
+  if (!userId) {
+    return ctx.reply("User ID not found. Please try again.");
+  }
+
+  const token = await getUserData(userId);
+  if (
+    !token &&
+    !(
+      ctx.message &&
+      "text" in ctx.message &&
+      ctx.message.text.startsWith("/login")
+    ) &&
+    !(
+      ctx.message &&
+      "text" in ctx.message &&
+      ctx.message.text.startsWith("/start")
+    )
+  ) {
+    return ctx.reply("🔐 Please log in first using /login.");
+  }
   return next();
+}, rateLimit(limitConfig));
+
+bot.catch((err, ctx) => {
+  console.error("Error:", err);
+  ctx.reply("❌ An unexpected error occurred. Please try again later.");
 });
+
+const helpMessage = escapeMarkdownV2(
+  "🛠️ *Copperx Bot Help* 🛠️\n\n" +
+    "Here are the commands you can use:\n\n" +
+    "🔐 *Authentication*\n" +
+    "`/login <email>` - Log in with your email.\n" +
+    "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
+    "💼 *Wallet Management*\n" +
+    "`/balance` - Check your wallet balances.\n" +
+    "`/wallets` - View your wallet details.\n" +
+    "`/wallet def <address>` - Set a default wallet.\n" +
+    "`/receive` - Get your wallet address and QR code.\n\n" +
+    "💸 *Transfers*\n" +
+    "`/send <email> <amount>` - Send funds to an email.\n" +
+    "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
+    "`/withdraw` - Withdraw funds to your bank account.\n\n" +
+    "📋 *Beneficiaries*\n" +
+    "`/beneficiaries` - View your saved beneficiaries.\n" +
+    "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
+    "`/addBeneficiary` - Add a beneficiary's details.\n" +
+    "`/updateBeneficiary <id>` - Update a beneficiary's details.\n" +
+    "`/deleteBeneficiary <id>` - Delete a beneficiary.\n\n" +
+    "📄 *Transactions*\n" +
+    "`/transfers` - View your transaction history.\n\n" +
+    "❓ *Support*\n" +
+    "Need help? Click the button below to visit our support page."
+);
 
 // COMMANDS
 
@@ -99,12 +171,14 @@ bot.command("start", async (ctx) => {
 
   // Send the image with a caption
   await ctx.replyWithPhoto(imageUrl, {
-    caption: escapeMarkdownV2("🌟 Welcome to the Copperx Bot! 🌟\n\n" +
-      "I'm here to help you manage your finances with ease. Here's what you can do:\n\n" +
-      "💼 *Check your balances*\n" +
-      "💸 *Send funds to friends or family*\n" +
-      "🏦 *Withdraw funds to your bank account*\n\n" +
-      "Get started by selecting an option below:"),
+    caption: escapeMarkdownV2(
+      "🌟 Welcome to the Copperx Bot! 🌟\n\n" +
+        "I'm here to help you manage your finances with ease. Here's what you can do:\n\n" +
+        "💼 *Check your balances*\n" +
+        "💸 *Send funds to friends or family*\n" +
+        "🏦 *Withdraw funds to your bank account*\n\n" +
+        "Get started by selecting an option below:"
+    ),
     parse_mode: "MarkdownV2",
     reply_markup: Markup.inlineKeyboard([
       [Markup.button.callback("Check Balance", "balance")],
@@ -117,47 +191,18 @@ bot.command("start", async (ctx) => {
 
 // Help command with more detailed information
 bot.action("help", (ctx) => {
-  ctx.reply(
-    escapeMarkdownV2(
-      "🛠️ *Copperx Bot Help* 🛠️\n\n" +
-        "Here are the commands you can use:\n\n" +
-        "🔐 *Authentication*\n" +
-        "`/login <email>` - Log in with your email.\n" +
-        "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
-        "💼 *Wallet Management*\n" +
-        "`/balance` - Check your wallet balances.\n" +
-        "`/wallets` - View your wallet details.\n" +
-        "`/wallet def <address>` - Set a default wallet.\n" +
-        "`/receive` - Get your wallet address and QR code.\n\n" +
-        "💸 *Transfers*\n" +
-        "`/send <email> <amount>` - Send funds to an email.\n" +
-        "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
-        "`/withdraw` - Withdraw funds to your bank account.\n\n" +
-        "📋 *Beneficiaries*\n" +
-        "`/beneficiaries` - View your saved beneficiaries.\n" +
-        "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
-        "`/addBeneficiary` - Add a beneficiary's details.\n" +
-        "`/updateBeneficiary <id>` - Update a beneficiary's details.\n" +
-        "`/deleteBeneficiary <id>` - Delete a beneficiary.\n\n" +
-        "📄 *Transactions*\n" +
-        "`/transfers` - View your transaction history.\n\n" +
-        "❓ *Support*\n" +
-        "Need help? Click the button below to visit our support page."
-    ),
-    {
-      parse_mode: "MarkdownV2",
-      reply_markup: Markup.inlineKeyboard([
-        [
-          Markup.button.url(
-            "Copperx Support",
-            "https://t.me/copperxcommunity/2183"
-          ),
-        ],
-      ]).reply_markup,
-    }
-  );
+  ctx.reply(helpMessage, {
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
+      [
+        Markup.button.url(
+          "Copperx Support",
+          "https://t.me/copperxcommunity/2183"
+        ),
+      ],
+    ]).reply_markup,
+  });
 });
-
 
 // Start Action
 bot.action("balance", async (ctx) => {
@@ -199,6 +244,20 @@ bot.action("send", (ctx) => {
 
 bot.action("withdraw", (ctx) => {
   ctx.reply("Please use the /withdraw command to withdraw funds.");
+});
+
+bot.command("help", async (ctx) => {
+  await ctx.reply(helpMessage, {
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
+      [
+        Markup.button.url(
+          "Copperx Support",
+          "https://t.me/copperxcommunity/2183"
+        ),
+      ],
+    ]).reply_markup,
+  });
 });
 
 bot.command("login", async (ctx) => {
@@ -2160,6 +2219,7 @@ const startBot = async () => {
   try {
     await connectRedis();
     console.log("Redis connected.");
+
     // Launch the bot
     bot
       .launch()
