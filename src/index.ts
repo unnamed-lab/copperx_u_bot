@@ -66,8 +66,6 @@ import rateLimit from "telegraf-ratelimit";
 
 dotenv.config();
 
-// Global flag to track transfer process state
-let isTransferProcessActive = false;
 
 // Session-based state management
 interface SessionData {
@@ -134,6 +132,20 @@ bot.catch((err, ctx) => {
   ctx.reply("❌ An unexpected error occurred. Please try again later.");
 });
 
+/**
+ * Generates a help message for the Copperx Bot with a list of available commands.
+ * The message is formatted using MarkdownV2 for better readability in messaging platforms.
+ *
+ * The help message includes the following sections:
+ * - Authentication: Commands for logging in and verifying OTP.
+ * - Wallet Management: Commands for checking balances, viewing wallet details, setting a default wallet, and receiving funds.
+ * - Transfers: Commands for sending funds, initiating transfers, and withdrawing funds.
+ * - Beneficiaries: Commands for managing saved beneficiaries.
+ * - Transactions: Command for viewing transaction history.
+ * - Support: Information on how to get help and support.
+ *
+ * @returns {string} The formatted help message.
+ */
 const helpMessage = escapeMarkdownV2(
   "🛠️ *Copperx Bot Help* 🛠️\n\n" +
     "Here are the commands you can use:\n\n" +
