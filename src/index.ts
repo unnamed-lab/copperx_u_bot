@@ -64,6 +64,7 @@ import {
   withdrawFundsWallet,
 } from "./libs/funds";
 import rateLimit from "telegraf-ratelimit";
+import { formatKycDetails, getKycDetails, KycDto } from "./libs/kyc";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -180,6 +181,13 @@ bot.command("start", async (ctx) => {
   const imageUrl =
     "https://private-user-images.githubusercontent.com/100434871/425706116-72b312cb-a18e-4cf7-8d46-0e412b6578b7.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI2MTgxNjEsIm5iZiI6MTc0MjYxNzg2MSwicGF0aCI6Ii8xMDA0MzQ4NzEvNDI1NzA2MTE2LTcyYjMxMmNiLWExOGUtNGNmNy04ZDQ2LTBlNDEyYjY1NzhiNy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzIyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMyMlQwNDMxMDFaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1kODI4YjcyMWZhMWY1ODM0OTQ5YTVjMzM1M2EyYTgzZWU1ZWIyNDY0OWZmMjE3NmMxNzkwNjMzYTgyYmQ5MTI4JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.hyCnTSm6TzJ1RQ97r8gzzLX3POqPERO2Nj3mz9o3rRA";
 
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
+
+  const kycResponse = token
+    ? await getKycDetails(token.accessToken, token.user.id)
+    : null;
+
   // Send the image with a caption
   await ctx.replyWithPhoto(imageUrl, {
     caption: escapeMarkdownV2(
@@ -192,9 +200,12 @@ bot.command("start", async (ctx) => {
     ),
     parse_mode: "MarkdownV2",
     reply_markup: Markup.inlineKeyboard([
+      [Markup.button.login("⚠️COMPLETE YOUR KYC", "", {}, !!kycResponse)],
       [Markup.button.callback("Check Balance", "balance")],
-      [Markup.button.callback("Send Funds", "send")],
-      [Markup.button.callback("Withdraw Funds", "withdraw")],
+      [
+        Markup.button.callback("Transfer Funds", "send"),
+        Markup.button.callback("Withdraw Funds", "withdraw"),
+      ],
       [Markup.button.callback("Help", "help")],
     ]).reply_markup,
   });
@@ -338,6 +349,67 @@ bot.command("me", async (ctx) => {
     );
   } catch (error) {
     ctx.reply("User not logged in!");
+  }
+});
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+// Handle the /kyc command to check the user's KYC status
+bot.command("kyc", async (ctx) => {
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
+
+  if (!token) {
+    return ctx.reply("🔐 Please log in first using /login."); // Prompt user to log in if not authenticated
+  }
+
+  try {
+    // Fetch KYC details for the user
+    const kycResponse = await getKycDetails(token.accessToken, token.user.id);
+
+    console.log("Response: ", kycResponse);
+
+    if (!kycResponse) {
+      // If no KYC is found, encourage the user to complete KYC
+      // URL of the image you want to send
+      const kycImageUrl =
+        "https://private-user-images.githubusercontent.com/100434871/425719190-ac2546a2-7112-45bd-8189-a83b1150b957.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI2MjQ4NjMsIm5iZiI6MTc0MjYyNDU2MywicGF0aCI6Ii8xMDA0MzQ4NzEvNDI1NzE5MTkwLWFjMjU0NmEyLTcxMTItNDViZC04MTg5LWE4M2IxMTUwYjk1Ny5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzIyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMyMlQwNjIyNDNaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02OTYwYmVjZmU4NTg4ZjdiNGNjODFkZTFhNmY5ZTYzZGQ1YzE1NjI2MjY0NzE5NmE4YWY1YjQyNjBiNDc5NjI5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.NSpQZBM-ekXTWvEZ525Or3E32OhjvOwNoSc0ikHc3gU";
+
+      // Send the image with the detailed caption
+      await ctx.replyWithPhoto(kycImageUrl, {
+        caption: escapeMarkdownV2(
+          `🔐 *KYC Verification Required* 🔐\n\n` +
+            `Hey there! 👋 It looks like you haven’t completed your KYC (Know Your Customer) verification yet. 🚨\n\n` +
+            `✨ *Why Complete KYC?* ✨\n` +
+            `- Unlock **full access** to all features, including **off-ramp transfers**.\n` +
+            `- Enjoy **higher transaction limits** and **enhanced security**.\n` +
+            `- Seamlessly send and receive funds without restrictions.\n\n` +
+            `📜 *What You’ll Need:*\n` +
+            `- A valid government-issued ID (e.g., passport, driver’s license).\n` +
+            `- Proof of address (e.g., utility bill, bank statement).\n` +
+            `- A quick selfie for identity verification.\n\n` +
+            `⏳ *It’s Fast & Easy!*\n` +
+            `The process takes just a few minutes, and once approved, you’ll have full access to all Copperx features. 🚀\n\n` +
+            `👉 *Ready to Get Started?*\n` +
+            `Click the button below to begin your KYC process now!`
+        ),
+        parse_mode: "MarkdownV2", // Use MarkdownV2 for formatting
+        reply_markup: Markup.inlineKeyboard([
+          Markup.button.url(
+            "Complete KYC Now",
+            "https://payout.copperx.io/app/kyc"
+          ), // Add a button to the KYC page
+        ]).reply_markup,
+      });
+    }
+
+    // If KYC is found, display the KYC details
+    const kycDetails = formatKycDetails(kycResponse as KycDto); // Format the KYC details
+    await ctx.reply(kycDetails, { parse_mode: "MarkdownV2" }); // Send the formatted details
+  } catch (error) {
+    console.error("Error fetching KYC details:", error); // Log errors
+    ctx.reply("❌ Failed to fetch KYC details. Please try again later."); // Notify user of failure
   }
 });
 
@@ -1801,6 +1873,7 @@ const startBot = async () => {
       .catch((err) => console.error("Bot failed to start:", err)); // Log launch errors
   } catch (error) {
     console.log("Error occurred!", error); // Log general errors
+    startBot();
   }
 };
 
