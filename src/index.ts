@@ -363,7 +363,8 @@ bot.command("kyc", async (ctx) => {
     if (!kycResponse) {
       // If no KYC is found, encourage the user to complete KYC
       // URL of the image you want to send
-      const kycImageUrl = "https://example.com/path-to-your-kyc-image.png";
+      const kycImageUrl =
+        "https://private-user-images.githubusercontent.com/100434871/425719190-ac2546a2-7112-45bd-8189-a83b1150b957.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI2MjQ4NjMsIm5iZiI6MTc0MjYyNDU2MywicGF0aCI6Ii8xMDA0MzQ4NzEvNDI1NzE5MTkwLWFjMjU0NmEyLTcxMTItNDViZC04MTg5LWE4M2IxMTUwYjk1Ny5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzIyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMyMlQwNjIyNDNaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02OTYwYmVjZmU4NTg4ZjdiNGNjODFkZTFhNmY5ZTYzZGQ1YzE1NjI2MjY0NzE5NmE4YWY1YjQyNjBiNDc5NjI5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.NSpQZBM-ekXTWvEZ525Or3E32OhjvOwNoSc0ikHc3gU";
 
       // Send the image with the detailed caption
       await ctx.replyWithPhoto(kycImageUrl, {
