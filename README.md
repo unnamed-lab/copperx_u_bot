@@ -36,78 +36,83 @@ If you encounter any issues or have questions, feel free to reach out to the Cop
 ## ✨ Core Features
 
 ### 1. **Authentication & Account Management**
-   - **Features**:
-     - User login/authentication using Copperx credentials.
-     - View account profile and status.
-     - Check KYC/KYB approval status.
-   - **API Endpoints**:
-     - `/api/auth/email-otp/request`: Request OTP for login.
-     - `/api/auth/email-otp/authenticate`: Authenticate using OTP.
-     - `/api/auth/me`: Fetch user profile.
-     - `/api/kycs`: Check KYC/KYB status.
-   - **Implementation Notes**:
-     - Redirect users to the Copperx platform if KYC/KYB is not approved.
-     - Securely store session tokens and implement session refresh mechanisms.
-     - Handle API rate limits gracefully.
+
+- **Features**:
+  - User login/authentication using Copperx credentials.
+  - View account profile and status.
+  - Check KYC/KYB approval status.
+- **API Endpoints**:
+  - `/api/auth/email-otp/request`: Request OTP for login.
+  - `/api/auth/email-otp/authenticate`: Authenticate using OTP.
+  - `/api/auth/me`: Fetch user profile.
+  - `/api/kycs`: Check KYC/KYB status.
+- **Implementation Notes**:
+  - Redirect users to the Copperx platform if KYC/KYB is not approved.
+  - Securely store session tokens and implement session refresh mechanisms.
+  - Handle API rate limits gracefully.
 
 ---
 
 ### 2. **Wallet Management**
-   - **Features**:
-     - View wallet balances across multiple networks.
-     - Set a default wallet for transactions.
-     - Deposit funds into the wallet.
-     - View transaction history.
-   - **API Endpoints**:
-     - `/api/wallets`: Fetch all wallets.
-     - `/api/wallets/balances`: Fetch wallet balances.
-     - `/api/wallets/default`: Set or fetch the default wallet.
-     - `/api/transfers`: Fetch transaction history.
-   - **Implementation Notes**:
-     - Display wallet balances in a user-friendly format.
-     - Allow users to set a default wallet for seamless transactions.
+
+- **Features**:
+  - View wallet balances across multiple networks.
+  - Set a default wallet for transactions.
+  - Deposit funds into the wallet.
+  - View transaction history.
+- **API Endpoints**:
+  - `/api/wallets`: Fetch all wallets.
+  - `/api/wallets/balances`: Fetch wallet balances.
+  - `/api/wallets/default`: Set or fetch the default wallet.
+  - `/api/transfers`: Fetch transaction history.
+- **Implementation Notes**:
+  - Display wallet balances in a user-friendly format.
+  - Allow users to set a default wallet for seamless transactions.
 
 ---
 
 ### 3. **Fund Transfers**
-   - **Features**:
-     - Send funds to email addresses.
-     - Send funds to external wallet addresses.
-     - Withdraw funds to bank accounts.
-     - View the last 10 transactions.
-   - **API Endpoints**:
-     - `/api/transfers/send`: Send funds via email.
-     - `/api/transfers/wallet-withdraw`: Withdraw funds to a wallet.
-     - `/api/transfers/offramp`: Withdraw funds to a bank account.
-     - `/api/transfers/send-batch`: Perform bulk transfers.
-     - `/api/transfers?page=1&limit=10`: Fetch recent transactions.
-   - **Implementation Notes**:
-     - Validate recipient information before initiating transfers.
-     - Display transaction fees and confirmations for security.
+
+- **Features**:
+  - Send funds to email addresses.
+  - Send funds to external wallet addresses.
+  - Withdraw funds to bank accounts.
+  - View the last 10 transactions.
+- **API Endpoints**:
+  - `/api/transfers/send`: Send funds via email.
+  - `/api/transfers/wallet-withdraw`: Withdraw funds to a wallet.
+  - `/api/transfers/offramp`: Withdraw funds to a bank account.
+  - `/api/transfers/send-batch`: Perform bulk transfers.
+  - `/api/transfers?page=1&limit=10`: Fetch recent transactions.
+- **Implementation Notes**:
+  - Validate recipient information before initiating transfers.
+  - Display transaction fees and confirmations for security.
 
 ---
 
 ### 4. **Deposit Notifications**
-   - **Features**:
-     - Receive real-time deposit notifications via Pusher.
-   - **API Endpoints**:
-     - `/api/notifications/auth`: Authenticate Pusher connections.
-   - **Implementation Notes**:
-     - Use Pusher to subscribe to private channels (`private-org-${organizationId}`).
-     - Listen for `deposit` events and notify users via Telegram.
-     - Format notifications with relevant transaction details.
+
+- **Features**:
+  - Receive real-time deposit notifications via Pusher.
+- **API Endpoints**:
+  - `/api/notifications/auth`: Authenticate Pusher connections.
+- **Implementation Notes**:
+  - Use Pusher to subscribe to private channels (`private-org-${organizationId}`).
+  - Listen for `deposit` events and notify users via Telegram.
+  - Format notifications with relevant transaction details.
 
 ---
 
 ### 5. **Bot Interaction Design**
-   - **Features**:
-     - Intuitive command structure (e.g., `/balance`, `/send`, `/withdraw`).
-     - Interactive menus and inline keyboards for complex operations.
-     - Help commands and clear instructions for users.
-     - Support for natural language queries.
-   - **Implementation Notes**:
-     - Use Markdown formatting for better readability.
-     - Provide a link to Copperx support for additional assistance.
+
+- **Features**:
+  - Intuitive command structure (e.g., `/balance`, `/send`, `/withdraw`).
+  - Interactive menus and inline keyboards for complex operations.
+  - Help commands and clear instructions for users.
+  - Support for natural language queries.
+- **Implementation Notes**:
+  - Use Markdown formatting for better readability.
+  - Provide a link to Copperx support for additional assistance.
 
 ---
 
@@ -124,14 +129,17 @@ If you encounter any issues or have questions, feel free to reach out to the Cop
 ## 📦 Deliverables
 
 1. **GitHub Repository**:
+
    - A complete repository with the bot's source code.
    - Include a detailed `README.md` for setup and usage instructions.
 
 2. **Deployed Bot**:
+
    - Deploy the bot using a free hosting service like [Render](https://render.com/).
    - Provide the bot's username for testing.
 
 3. **Documentation**:
+
    - **Setup Instructions**: Step-by-step guide for setting up the bot locally.
    - **API Integration Details**: Explanation of how the bot integrates with the Copperx API.
    - **Command Reference**: List of all available commands and their usage.
@@ -145,42 +153,48 @@ If you encounter any issues or have questions, feel free to reach out to the Cop
 ## 🚀 Getting Started
 
 ### 1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/unnamed-lab/copperx_u_bot.git
-   cd copperx-telegram-bot
-   ```
+
+```bash
+git clone https://github.com/unnamed-lab/copperx_u_bot.git
+cd copperx-telegram-bot
+```
 
 ### 2. **Install Dependencies**
-   ```bash
-   npm install
-   ```
+
+```bash
+npm install
+```
 
 ### 3. **Set Up Environment Variables**
-   Create a `.env` file and add the following variables:
-   ```
-   TELEGRAM_BOT_TOKEN=your-telegram-bot-token
-   PUSHER_KEY=xxx
-   PUSHER_CLUSTER=xxx
-   COPPERX_API_KEY=your-copperx-api-key
-   REDIS_URL=xxx
-   OPENAI_API_KEY=your-openai-api-key
-   ZUKI_API=xxx
-   ```
+
+Create a `.env` file and add the following variables:
+
+```bash
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+PUSHER_KEY=xxx
+PUSHER_CLUSTER=xxx
+PUSHER_SECRET=xxxx
+PUSHER_ID=xxxx
+COPPERX_API_KEY=your-copperx-api-key
+REDIS_URL=xxx
+OPENAI_API_KEY=your-openai-api-key
+ZUKI_API=xxx
+```
 
 ### 4. **Run the Bot**
 
-   - For development:
+- For development:
 
-     ```bash
-     npm run dev
-     ```
+  ```bash
+  npm run dev
+  ```
 
-   - For production:
-  
-     ```bash
-     npm run build
-     npm start
-     ```
+- For production:
+
+  ```bash
+  npm run build
+  npm start
+  ```
 
 ---
 
