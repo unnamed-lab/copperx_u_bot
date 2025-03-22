@@ -132,8 +132,26 @@ export interface KycDto {
 // Function to fetch KYC details from the API
 export const getKycDetails = async (accessToken: string, userId: string) => {
   try {
-    const response = await axios.get(
+    const response = await axios.get<KycDto>(
       `https://income-api.copperx.io/api/kycs/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`, // Include the access token in the request
+        },
+      }
+    );
+
+    return response.data; // Return the KYC details
+  } catch (error) {
+    console.error("Error fetching KYC details:", error); // Log errors
+    return null; // Return null if no KYC is found or if there's an error
+  }
+};
+
+export const getKycStatus = async (accessToken: string, email: string) => {
+  try {
+    const response = await axios.get<string>(
+      `https://income-api.copperx.io/api/kycs/status/${email}`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`, // Include the access token in the request
