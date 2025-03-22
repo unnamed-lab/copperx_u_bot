@@ -95,7 +95,7 @@ bot.use((ctx, next) => {
 bot.command("start", async (ctx) => {
   // URL of the image you want to send
   const imageUrl =
-    "https://images.pexels.com/photos/27269620/pexels-photo-27269620/free-photo-of-aerial-view-of-a-beach-with-sand-and-water.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
+    "https://private-user-images.githubusercontent.com/100434871/425706116-72b312cb-a18e-4cf7-8d46-0e412b6578b7.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI2MTgxNjEsIm5iZiI6MTc0MjYxNzg2MSwicGF0aCI6Ii8xMDA0MzQ4NzEvNDI1NzA2MTE2LTcyYjMxMmNiLWExOGUtNGNmNy04ZDQ2LTBlNDEyYjY1NzhiNy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzIyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMyMlQwNDMxMDFaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1kODI4YjcyMWZhMWY1ODM0OTQ5YTVjMzM1M2EyYTgzZWU1ZWIyNDY0OWZmMjE3NmMxNzkwNjMzYTgyYmQ5MTI4JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.hyCnTSm6TzJ1RQ97r8gzzLX3POqPERO2Nj3mz9o3rRA";
 
   // Send the image with a caption
   await ctx.replyWithPhoto(imageUrl, {
