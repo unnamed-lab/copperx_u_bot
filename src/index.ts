@@ -1,3 +1,4 @@
+// Import necessary modules and utilities
 import { Context, Markup, Telegraf } from "telegraf";
 import { authenticateOTP, getUserToken, requestOTP } from "./libs/auth";
 import {
@@ -64,51 +65,48 @@ import {
 } from "./libs/funds";
 import rateLimit from "telegraf-ratelimit";
 
+// Load environment variables from .env file
 dotenv.config();
 
-
-// Session-based state management
+// Define session data structure for state management
 interface SessionData {
-  isTransferProcessActive: boolean;
+  isTransferProcessActive: boolean; // Tracks if a transfer process is active
 }
 
-// Extend the context type to include session data
+// Extend the Telegraf context to include session data
 interface MyContext extends Context {
-  session?: SessionData;
-  req?: any;
-  res?: any;
+  session?: SessionData; // Optional session data
+  req?: any; // Optional request object
+  res?: any; // Optional response object
 }
 
+// Initialize the Telegraf bot with the extended context
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_BOT_TOKEN!, {
   telegram: { agent: undefined, webhookReply: true },
 });
 
-// Configure rate limiting
+// Configure rate limiting to prevent spam
 const limitConfig = {
-  window: 3000, // 3 seconds
-  limit: 1, // Limit each user to 1 message per window
+  window: 3000, // Time window in milliseconds (3 seconds)
+  limit: 1, // Maximum number of messages allowed per window
   onLimitExceeded: (ctx: Context) => {
-    ctx.reply("Please don't spam! 🛑");
+    ctx.reply("Please don't spam! 🛑"); // Message sent when limit is exceeded
   },
   keyGenerator: (ctx: Context) => ctx.from?.id.toString() || "global", // Unique key for each user
-  // Exclude /help from rate limiting
-  skip: (ctx: Context) =>
-    ctx.message &&
-    "text" in ctx.message &&
-    ctx.message.text.startsWith("/help"),
 };
 
+// Middleware to initialize session and check authentication
 bot.use(async (ctx, next) => {
   if (!ctx.session) {
-    ctx.session = { isTransferProcessActive: false };
+    ctx.session = { isTransferProcessActive: false }; // Initialize session if it doesn't exist
   }
 
-  const userId = ctx.from?.id.toString();
+  const userId = ctx.from?.id.toString(); // Get user ID from context
   if (!userId) {
-    return ctx.reply("User ID not found. Please try again.");
+    return ctx.reply("User ID not found. Please try again."); // Handle missing user ID
   }
 
-  const token = await getUserData(userId);
+  const token = await getUserData(userId); // Fetch user data from Redis
   if (
     !token &&
     !(
@@ -122,14 +120,15 @@ bot.use(async (ctx, next) => {
       ctx.message.text.startsWith("/start")
     )
   ) {
-    return ctx.reply("🔐 Please log in first using /login.");
+    return ctx.reply("🔐 Please log in first using /login."); // Prompt user to log in if not authenticated
   }
   return next();
-}, rateLimit(limitConfig));
+}, rateLimit(limitConfig)); // Apply rate limiting
 
+// Global error handler for the bot
 bot.catch((err, ctx) => {
-  console.error("Error:", err);
-  ctx.reply("❌ An unexpected error occurred. Please try again later.");
+  console.error("Error:", err); // Log the error
+  ctx.reply("❌ An unexpected error occurred. Please try again later."); // Notify the user
 });
 
 /**
@@ -175,7 +174,7 @@ const helpMessage = escapeMarkdownV2(
 
 // COMMANDS
 
-// Start command with image and friendly message
+// Handle the /start command with a welcome message and image
 bot.command("start", async (ctx) => {
   // URL of the image you want to send
   const imageUrl =
@@ -201,7 +200,7 @@ bot.command("start", async (ctx) => {
   });
 });
 
-// Help command with more detailed information
+// Define the help message with a list of available commands
 bot.action("help", (ctx) => {
   ctx.reply(helpMessage, {
     parse_mode: "MarkdownV2",
@@ -216,7 +215,7 @@ bot.action("help", (ctx) => {
   });
 });
 
-// Start Action
+// Handle the /balance command to fetch and display wallet balances
 bot.action("balance", async (ctx) => {
   const userId = ctx.from.id.toString();
   const token = await getUserData(userId);
@@ -258,6 +257,7 @@ bot.action("withdraw", (ctx) => {
   ctx.reply("Please use the /withdraw command to withdraw funds.");
 });
 
+// Define the help message with a list of available commands
 bot.command("help", async (ctx) => {
   await ctx.reply(helpMessage, {
     parse_mode: "MarkdownV2",
@@ -382,6 +382,7 @@ bot.action("cancel_send", (ctx) => {
   ctx.reply("Send funds canceled.");
 });
 
+// Handle the /wallets command to fetch and display wallet details
 bot.command("wallets", async (ctx) => {
   ctx.reply(
     `Do you want to check your wallets?`,
@@ -506,6 +507,7 @@ bot.command("wallet", async (ctx) => {
   }
 });
 
+// Handle the /receive command to generate a wallet address and QR code
 bot.command("receive", async (ctx) => {
   const userId = ctx.from.id.toString();
   try {
@@ -575,7 +577,7 @@ bot.action(/copy_address_(.+)/, async (ctx) => {
   });
 });
 
-// Deposit command
+// Handle the /deposit command to initiate a deposit
 bot.command("deposit", async (ctx) => {
   const userId = ctx.from.id.toString();
   const args = ctx.message.text.split(" ").slice(1);
