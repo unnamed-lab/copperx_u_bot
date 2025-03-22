@@ -91,62 +91,32 @@ bot.use((ctx, next) => {
 
 // COMMANDS
 
-// Start command
-bot.command("start", (ctx) => {
-  ctx.reply(
-    "Welcome to the Copperx Bot! 🚀\nWhat would you like to do?",
-    Markup.inlineKeyboard([
+// Start command with image and friendly message
+bot.command("start", async (ctx) => {
+  // URL of the image you want to send
+  const imageUrl =
+    "https://images.pexels.com/photos/27269620/pexels-photo-27269620/free-photo-of-aerial-view-of-a-beach-with-sand-and-water.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
+
+  // Send the image with a caption
+  await ctx.replyWithPhoto(imageUrl, {
+    caption: escapeMarkdownV2("🌟 Welcome to the Copperx Bot! 🌟\n\n" +
+      "I'm here to help you manage your finances with ease. Here's what you can do:\n\n" +
+      "💼 *Check your balances*\n" +
+      "💸 *Send funds to friends or family*\n" +
+      "🏦 *Withdraw funds to your bank account*\n\n" +
+      "Get started by selecting an option below:"),
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
       [Markup.button.callback("Check Balance", "balance")],
       [Markup.button.callback("Send Funds", "send")],
       [Markup.button.callback("Withdraw Funds", "withdraw")],
-    ])
-  );
+      [Markup.button.callback("Help", "help")],
+    ]).reply_markup,
+  });
 });
 
-// Start Action
-bot.action("balance", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
-
-  if (!token) {
-    return ctx.reply("Please log in first using /login.");
-  }
-
-  if (!ctx.chat) return ctx.reply("Invalid chat.");
-
-  const loadingMessage = await ctx.reply("Fetching balances...");
-
-  try {
-    const balances = await getWalletBalances(token.accessToken);
-    const formattedBalances = formatBalances(balances);
-
-    ctx.telegram.editMessageText(
-      ctx.chat.id,
-      loadingMessage.message_id,
-      undefined,
-      formattedBalances,
-      { parse_mode: "MarkdownV2" }
-    );
-  } catch (error) {
-    ctx.telegram.editMessageText(
-      ctx.chat.id,
-      loadingMessage.message_id,
-      undefined,
-      "Failed to fetch balances."
-    );
-  }
-});
-
-bot.action("send", (ctx) => {
-  ctx.reply("Please use the /send command to send funds.");
-});
-
-bot.action("withdraw", (ctx) => {
-  ctx.reply("Please use the /withdraw command to withdraw funds.");
-});
-
-// Help command
-bot.command("help", (ctx) => {
+// Help command with more detailed information
+bot.action("help", (ctx) => {
   ctx.reply(
     escapeMarkdownV2(
       "🛠️ *Copperx Bot Help* 🛠️\n\n" +
@@ -185,6 +155,49 @@ bot.command("help", (ctx) => {
       ]).reply_markup,
     }
   );
+});
+
+
+// Start Action
+bot.action("balance", async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const token = await getUserData(userId);
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
+
+  if (!ctx.chat) return ctx.reply("Invalid chat.");
+
+  const loadingMessage = await ctx.reply("Fetching balances...");
+
+  try {
+    const balances = await getWalletBalances(token.accessToken);
+    const formattedBalances = formatBalances(balances);
+
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      formattedBalances,
+      { parse_mode: "MarkdownV2" }
+    );
+  } catch (error) {
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      "Failed to fetch balances."
+    );
+  }
+});
+
+bot.action("send", (ctx) => {
+  ctx.reply("Please use the /transfer command to send funds.");
+});
+
+bot.action("withdraw", (ctx) => {
+  ctx.reply("Please use the /withdraw command to withdraw funds.");
 });
 
 bot.command("login", async (ctx) => {
@@ -253,6 +266,9 @@ bot.command("me", async (ctx) => {
     ctx.reply("User not logged in!");
   }
 });
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
 bot.command("send", async (ctx) => {
   const [email, amount] = ctx.message.text.split(" ").slice(1);
@@ -673,10 +689,6 @@ bot.command("transfer", async (ctx) => {
     // Listen for the user's response
     bot.on("text", async (ctx) => {
       const text = ctx.message.text;
-
-      if (text.startsWith("/")) {
-        return; // Ignore commands
-      }
 
       if (!transferPayload.walletAddress) {
         transferPayload.walletAddress = text;
