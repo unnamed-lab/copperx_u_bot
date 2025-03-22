@@ -1,3 +1,4 @@
+// Import necessary modules and utilities
 import { Context, Markup, Telegraf } from "telegraf";
 import { authenticateOTP, getUserToken, requestOTP } from "./libs/auth";
 import {
@@ -62,72 +63,185 @@ import {
   withdrawFundsEmail,
   withdrawFundsWallet,
 } from "./libs/funds";
+import rateLimit from "telegraf-ratelimit";
 
+// Load environment variables from .env file
 dotenv.config();
 
-// Global flag to track transfer process state
-let isTransferProcessActive = false;
-
-// Session-based state management
+// Define session data structure for state management
 interface SessionData {
-  isTransferProcessActive: boolean;
+  isTransferProcessActive: boolean; // Tracks if a transfer process is active
 }
 
-// Extend the context type to include session data
+// Extend the Telegraf context to include session data
 interface MyContext extends Context {
-  session?: SessionData;
+  session?: SessionData; // Optional session data
+  req?: any; // Optional request object
+  res?: any; // Optional response object
 }
 
+// Initialize the Telegraf bot with the extended context
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_BOT_TOKEN!, {
   telegram: { agent: undefined, webhookReply: true },
 });
 
-bot.use((ctx, next) => {
+// Configure rate limiting to prevent spam
+const limitConfig = {
+  window: 3000, // Time window in milliseconds (3 seconds)
+  limit: 1, // Maximum number of messages allowed per window
+  onLimitExceeded: (ctx: Context) => {
+    ctx.reply("Please don't spam! 🛑"); // Message sent when limit is exceeded
+  },
+  keyGenerator: (ctx: Context) => ctx.from?.id.toString() || "global", // Unique key for each user
+};
+
+// Middleware to initialize session and check authentication
+bot.use(async (ctx, next) => {
   if (!ctx.session) {
-    ctx.session = { isTransferProcessActive: false };
+    ctx.session = { isTransferProcessActive: false }; // Initialize session if it doesn't exist
+  }
+
+  const userId = ctx.from?.id.toString(); // Get user ID from context
+  if (!userId) {
+    return ctx.reply("User ID not found. Please try again."); // Handle missing user ID
+  }
+
+  const token = await getUserData(userId); // Fetch user data from Redis
+  if (
+    !token &&
+    !(
+      ctx.message &&
+      "text" in ctx.message &&
+      ctx.message.text.startsWith("/login")
+    ) &&
+    !(
+      ctx.message &&
+      "text" in ctx.message &&
+      ctx.message.text.startsWith("/start")
+    )
+  ) {
+    return ctx.reply("🔐 Please log in first using /login."); // Prompt user to log in if not authenticated
   }
   return next();
+}, rateLimit(limitConfig)); // Apply rate limiting
+
+// Global error handler for the bot
+bot.catch((err, ctx) => {
+  console.error("Error:", err); // Log the error
+  ctx.reply("❌ An unexpected error occurred. Please try again later."); // Notify the user
 });
+
+/**
+ * Generates a help message for the Copperx Bot with a list of available commands.
+ * The message is formatted using MarkdownV2 for better readability in messaging platforms.
+ *
+ * The help message includes the following sections:
+ * - Authentication: Commands for logging in and verifying OTP.
+ * - Wallet Management: Commands for checking balances, viewing wallet details, setting a default wallet, and receiving funds.
+ * - Transfers: Commands for sending funds, initiating transfers, and withdrawing funds.
+ * - Beneficiaries: Commands for managing saved beneficiaries.
+ * - Transactions: Command for viewing transaction history.
+ * - Support: Information on how to get help and support.
+ *
+ * @returns {string} The formatted help message.
+ */
+const helpMessage = escapeMarkdownV2(
+  "🛠️ *Copperx Bot Help* 🛠️\n\n" +
+    "Here are the commands you can use:\n\n" +
+    "🔐 *Authentication*\n" +
+    "`/login <email>` - Log in with your email.\n" +
+    "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
+    "💼 *Wallet Management*\n" +
+    "`/balance` - Check your wallet balances.\n" +
+    "`/wallets` - View your wallet details.\n" +
+    "`/wallet def <address>` - Set a default wallet.\n" +
+    "`/receive` - Get your wallet address and QR code.\n\n" +
+    "💸 *Transfers*\n" +
+    "`/send <email> <amount>` - Send funds to an email.\n" +
+    "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
+    "`/withdraw` - Withdraw funds to your bank account.\n\n" +
+    "📋 *Beneficiaries*\n" +
+    "`/beneficiaries` - View your saved beneficiaries.\n" +
+    "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
+    "`/addBeneficiary` - Add a beneficiary's details.\n" +
+    "`/updateBeneficiary <id>` - Update a beneficiary's details.\n" +
+    "`/deleteBeneficiary <id>` - Delete a beneficiary.\n\n" +
+    "📄 *Transactions*\n" +
+    "`/transfers` - View your transaction history.\n\n" +
+    "❓ *Support*\n" +
+    "Need help? Click the button below to visit our support page."
+);
 
 // COMMANDS
 
-// Start command
-bot.command("start", (ctx) => {
-  ctx.reply(
-    "Welcome to the Copperx Bot! 🚀\nWhat would you like to do?",
-    Markup.inlineKeyboard([
+// Handle the /start command with a welcome message and image
+bot.command("start", async (ctx) => {
+  // URL of the image you want to send
+  const imageUrl =
+    "https://private-user-images.githubusercontent.com/100434871/425706116-72b312cb-a18e-4cf7-8d46-0e412b6578b7.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI2MTgxNjEsIm5iZiI6MTc0MjYxNzg2MSwicGF0aCI6Ii8xMDA0MzQ4NzEvNDI1NzA2MTE2LTcyYjMxMmNiLWExOGUtNGNmNy04ZDQ2LTBlNDEyYjY1NzhiNy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzIyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMyMlQwNDMxMDFaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1kODI4YjcyMWZhMWY1ODM0OTQ5YTVjMzM1M2EyYTgzZWU1ZWIyNDY0OWZmMjE3NmMxNzkwNjMzYTgyYmQ5MTI4JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.hyCnTSm6TzJ1RQ97r8gzzLX3POqPERO2Nj3mz9o3rRA";
+
+  // Send the image with a caption
+  await ctx.replyWithPhoto(imageUrl, {
+    caption: escapeMarkdownV2(
+      "🌟 Welcome to the Copperx Bot! 🌟\n\n" +
+        "I'm here to help you manage your finances with ease. Here's what you can do:\n\n" +
+        "💼 *Check your balances*\n" +
+        "💸 *Send funds to friends or family*\n" +
+        "🏦 *Withdraw funds to your bank account*\n\n" +
+        "Get started by selecting an option below:"
+    ),
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
       [Markup.button.callback("Check Balance", "balance")],
       [Markup.button.callback("Send Funds", "send")],
       [Markup.button.callback("Withdraw Funds", "withdraw")],
-    ])
-  );
+      [Markup.button.callback("Help", "help")],
+    ]).reply_markup,
+  });
 });
 
-// Start Action
+// Define the help message with a list of available commands
+bot.action("help", (ctx) => {
+  ctx.reply(helpMessage, {
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
+      [
+        Markup.button.url(
+          "Copperx Support",
+          "https://t.me/copperxcommunity/2183"
+        ),
+      ],
+    ]).reply_markup,
+  });
+});
+
+// Handle the /balance command to fetch and display wallet balances
 bot.action("balance", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
-  if (!ctx.chat) return ctx.reply("Invalid chat.");
+  if (!ctx.chat) return ctx.reply("Invalid chat."); // Handle invalid chat
 
-  const loadingMessage = await ctx.reply("Fetching balances...");
+  const loadingMessage = await ctx.reply("Fetching balances..."); // Show loading message
 
   try {
-    const balances = await getWalletBalances(token.accessToken);
-    const formattedBalances = formatBalances(balances);
+    const balances = await getWalletBalances(token.accessToken); // Fetch wallet balances
+    const formattedBalances = formatBalances(balances); // Format balances for display
 
+    // Update the loading message with the formatted balances
     ctx.telegram.editMessageText(
       ctx.chat.id,
       loadingMessage.message_id,
       undefined,
       formattedBalances,
-      { parse_mode: "MarkdownV2" }
+      { parse_mode: "MarkdownV2" } // Use MarkdownV2 for formatting
     );
   } catch (error) {
+    // Handle errors
     ctx.telegram.editMessageText(
       ctx.chat.id,
       loadingMessage.message_id,
@@ -138,53 +252,26 @@ bot.action("balance", async (ctx) => {
 });
 
 bot.action("send", (ctx) => {
-  ctx.reply("Please use the /send command to send funds.");
+  ctx.reply("Please use the /transfer command to send funds.");
 });
 
 bot.action("withdraw", (ctx) => {
   ctx.reply("Please use the /withdraw command to withdraw funds.");
 });
 
-// Help command
-bot.command("help", (ctx) => {
-  ctx.reply(
-    escapeMarkdownV2(
-      "🛠️ *Copperx Bot Help* 🛠️\n\n" +
-        "Here are the commands you can use:\n\n" +
-        "🔐 *Authentication*\n" +
-        "`/login <email>` - Log in with your email.\n" +
-        "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
-        "💼 *Wallet Management*\n" +
-        "`/balance` - Check your wallet balances.\n" +
-        "`/wallets` - View your wallet details.\n" +
-        "`/wallet def <address>` - Set a default wallet.\n" +
-        "`/receive` - Get your wallet address and QR code.\n\n" +
-        "💸 *Transfers*\n" +
-        "`/send <email> <amount>` - Send funds to an email.\n" +
-        "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
-        "`/withdraw` - Withdraw funds to your bank account.\n\n" +
-        "📋 *Beneficiaries*\n" +
-        "`/beneficiaries` - View your saved beneficiaries.\n" +
-        "`/beneficiary <id>` - View details of a specific beneficiary.\n" +
-        "`/updateBeneficiary <id>` - Update a beneficiary's details.\n" +
-        "`/deleteBeneficiary <id>` - Delete a beneficiary.\n\n" +
-        "📄 *Transactions*\n" +
-        "`/transfers` - View your transaction history.\n\n" +
-        "❓ *Support*\n" +
-        "Need help? Click the button below to visit our support page."
-    ),
-    {
-      parse_mode: "MarkdownV2",
-      reply_markup: Markup.inlineKeyboard([
-        [
-          Markup.button.url(
-            "Copperx Support",
-            "https://t.me/copperxcommunity/2183"
-          ),
-        ],
-      ]).reply_markup,
-    }
-  );
+// Define the help message with a list of available commands
+bot.command("help", async (ctx) => {
+  await ctx.reply(helpMessage, {
+    parse_mode: "MarkdownV2",
+    reply_markup: Markup.inlineKeyboard([
+      [
+        Markup.button.url(
+          "Copperx Support",
+          "https://t.me/copperxcommunity/2183"
+        ),
+      ],
+    ]).reply_markup,
+  });
 });
 
 bot.command("login", async (ctx) => {
@@ -254,6 +341,9 @@ bot.command("me", async (ctx) => {
   }
 });
 
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
 bot.command("send", async (ctx) => {
   const [email, amount] = ctx.message.text.split(" ").slice(1);
   if (!email || !amount) {
@@ -294,6 +384,7 @@ bot.action("cancel_send", (ctx) => {
   ctx.reply("Send funds canceled.");
 });
 
+// Handle the /wallets command to fetch and display wallet details
 bot.command("wallets", async (ctx) => {
   ctx.reply(
     `Do you want to check your wallets?`,
@@ -307,30 +398,33 @@ bot.command("wallets", async (ctx) => {
   );
 });
 
+// Handle confirmation for fetching wallet details
 bot.action("confirm_wallet", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
-  if (!ctx.chat) return ctx.reply("Invalid chat.");
+  if (!ctx.chat) return ctx.reply("Invalid chat."); // Handle invalid chat
 
-  const loadingMessage = await ctx.reply("Fetching wallets...");
+  const loadingMessage = await ctx.reply("Fetching wallets..."); // Show loading message
 
   try {
-    const wallets = await getWallet(token.accessToken);
-    const formattedBalances = formatWallets(wallets);
+    const wallets = await getWallet(token.accessToken); // Fetch wallet details
+    const formattedBalances = formatWallets(wallets); // Format wallet details for display
 
+    // Update the loading message with the formatted wallet details
     ctx.telegram.editMessageText(
       ctx.chat.id,
       loadingMessage.message_id,
       undefined,
       formattedBalances,
-      { parse_mode: "MarkdownV2" }
+      { parse_mode: "MarkdownV2" } // Use MarkdownV2 for formatting
     );
   } catch (error) {
+    // Handle errors
     ctx.telegram.editMessageText(
       ctx.chat.id,
       loadingMessage.message_id,
@@ -418,28 +512,25 @@ bot.command("wallet", async (ctx) => {
   }
 });
 
+// Handle the /receive command to generate a wallet address and QR code
 bot.command("receive", async (ctx) => {
-  const userId = ctx.from.id.toString();
+  const userId = ctx.from.id.toString(); // Get user ID
   try {
-    // Get user data from Redis/session
-    const token = await getUserData(userId);
+    const token = await getUserData(userId); // Fetch user data
 
     if (!token) {
-      return ctx.reply("Please log in first using /login.");
+      return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
     }
 
-    // Get user's wallet address from your system
-    const user: UserRedis["user"] = token.user;
-    const walletAddress = user.walletAddress;
-    const network = user.walletAccountType.toUpperCase();
+    const user: UserRedis["user"] = token.user; // Extract user details
+    const walletAddress = user.walletAddress; // Get wallet address
+    const network = user.walletAccountType.toUpperCase(); // Get wallet network
 
     if (!walletAddress) {
-      return ctx.reply("No wallet address found for your account.");
+      return ctx.reply("No wallet address found for your account."); // Handle missing wallet address
     }
 
-    console.log({ walletAddress });
-
-    // Generate QR Code
+    // Generate QR code for the wallet address
     const qrCode = await QRCode.toBuffer(walletAddress, {
       errorCorrectionLevel: "H",
       type: "png",
@@ -454,12 +545,12 @@ bot.command("receive", async (ctx) => {
       `Address: \`${walletAddress}\`\n\n` +
       `Scan the QR code or copy the address above to send funds`;
 
-    // Send QR code and address
+    // Send QR code and address to the user
     await ctx.replyWithPhoto(
       { source: qrCode },
       {
         caption: caption,
-        parse_mode: "MarkdownV2",
+        parse_mode: "MarkdownV2", // Use MarkdownV2 for formatting
         reply_markup: {
           inline_keyboard: [
             [
@@ -473,8 +564,8 @@ bot.command("receive", async (ctx) => {
       }
     );
   } catch (error) {
-    console.error("Deposit error:", error);
-    ctx.reply("Failed to generate deposit address. Please try again.");
+    console.error("Deposit error:", error); // Log errors
+    ctx.reply("Failed to generate deposit address. Please try again."); // Notify user of failure
   }
 });
 
@@ -487,7 +578,7 @@ bot.action(/copy_address_(.+)/, async (ctx) => {
   });
 });
 
-// Deposit command
+// Handle the /deposit command to initiate a deposit
 bot.command("deposit", async (ctx) => {
   const userId = ctx.from.id.toString();
   const args = ctx.message.text.split(" ").slice(1);
@@ -673,10 +764,6 @@ bot.command("transfer", async (ctx) => {
     // Listen for the user's response
     bot.on("text", async (ctx) => {
       const text = ctx.message.text;
-
-      if (text.startsWith("/")) {
-        return; // Ignore commands
-      }
 
       if (!transferPayload.walletAddress) {
         transferPayload.walletAddress = text;
@@ -1513,22 +1600,23 @@ bot.command("transfers", async (ctx) => {
   });
 });
 
+// Handle the /beneficiaries command to fetch and display saved beneficiaries
 bot.command("beneficiaries", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
   try {
-    const payees = await getAllPayee(token.accessToken);
+    const payees = await getAllPayee(token.accessToken); // Fetch all beneficiaries
 
     if (payees.length === 0 && !!Array.isArray(payees)) {
-      return ctx.reply("No beneficiaries found.");
+      return ctx.reply("No beneficiaries found."); // Handle no beneficiaries found
     }
 
-    let message = "📋 *Beneficiaries*\n\n";
+    let message = "📋 *Beneficiaries*\n\n"; // Initialize message
     payees.forEach((payee) => {
       message +=
         `- 🆔 ID: ${payee.id}\n` +
@@ -1536,13 +1624,13 @@ bot.command("beneficiaries", async (ctx) => {
         `- 📛 Nickname: ${payee.nickName}\n` +
         `- ☎️ Phone Number: ${payee.phoneNumber}\n` +
         `- 📧 Email: ${payee.email}\n` +
-        `- 🏦 Has Bank: ${payee.hasBankAccount ? "✅" : "❌"}\n\n`;
+        `- 🏦 Has Bank: ${payee.hasBankAccount ? "✅" : "❌"}\n\n`; // Format beneficiary details
     });
 
-    await ctx.reply(escapeMarkdownV2(message), { parse_mode: "MarkdownV2" });
+    await ctx.reply(escapeMarkdownV2(message), { parse_mode: "MarkdownV2" }); // Send formatted message
   } catch (error) {
-    console.error("Error fetching beneficiaries:", error);
-    await ctx.reply("❌ Failed to fetch beneficiaries. Please try again.");
+    console.error("Error fetching beneficiaries:", error); // Log errors
+    await ctx.reply("❌ Failed to fetch beneficiaries. Please try again."); // Notify user of failure
   }
 });
 
@@ -1587,21 +1675,22 @@ bot.command("beneficiary", async (ctx) => {
   }
 });
 
+// Handle the /addBeneficiary command to add a new beneficiary
 bot.command("addBeneficiary", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
-  let activeProcess = true;
+  let activeProcess = true; // Track if the add beneficiary process is active
 
   // Initialize the state for the user
   let addBeneficiaryState: CreatePayeeDto = {} as any;
 
   if (!addBeneficiaryState.bankAccount) {
-    addBeneficiaryState.bankAccount = {} as any;
+    addBeneficiaryState.bankAccount = {} as any; // Initialize bank account details
   }
 
   // Start the process by asking for the nickname
@@ -1611,495 +1700,51 @@ bot.command("addBeneficiary", async (ctx) => {
       Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
     ])
   );
-
-  bot.on("text", async (ctx) => {
-    const text = ctx.message.text;
-
-    if (text.startsWith("/")) {
-      return; // Ignore commands
-    }
-
-    if (activeProcess) {
-      if (!addBeneficiaryState.nickName) {
-        addBeneficiaryState.nickName = text;
-
-        await ctx.reply(
-          "Great! Now, please provide the beneficiary's first name:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.firstName) {
-        addBeneficiaryState.firstName = text;
-
-        await ctx.reply(
-          "Got it! Now, please provide the beneficiary's last name:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.lastName) {
-        addBeneficiaryState.lastName = text;
-
-        await ctx.reply(
-          "Awesome! Now, please provide the beneficiary's email:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.email) {
-        if (!validateEmail(text)) {
-          return await ctx.reply(
-            "It seems the email you provided was an invalid email format. Please try again."
-          );
-        } else {
-          addBeneficiaryState.email = text;
-          await ctx.reply(
-            "Got it! Now, please provide the beneficiary's phone number (with country code, e.g., 1234567890):",
-            Markup.inlineKeyboard([
-              Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-            ])
-          );
-          return;
-        }
-      }
-
-      if (!addBeneficiaryState.phoneNumber) {
-        addBeneficiaryState.phoneNumber = text;
-
-        await ctx.reply(
-          "Awesome! Now, let's collect the bank account details.\n\nPlease provide the bank's country (e.g., usa, ind):",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.country) {
-        // Validate the country
-        if (!validCountries.includes(text.toLowerCase() as Country)) {
-          return ctx.reply(
-            `Invalid country. Supported values: ${validCountries
-              .map((el) => el.toUpperCase())
-              .join(", ")}`
-          );
-        }
-        addBeneficiaryState.bankAccount.country = text.toLowerCase() as Country;
-
-        await ctx.reply(
-          "Great! Now, please provide the bank's name:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankName) {
-        addBeneficiaryState.bankAccount!.bankName = text;
-
-        await ctx.reply(
-          "Awesome! Now, please select the bank account type:",
-          Markup.inlineKeyboard([
-            [Markup.button.callback("Savings", "account_type_savings")],
-            [Markup.button.callback("Checking", "account_type_checking")],
-            [Markup.button.callback("❌ Cancel", "cancel_add_beneficiary")],
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankAccountType) {
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankAddress) {
-        addBeneficiaryState.bankAccount!.bankAddress = text;
-
-        // Display buttons for bankAccountType
-        await ctx.reply(
-          "Awesome! Now, please select the bank account type:",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback("WEB3 WALLET", "account_type_web3_wallet"),
-              Markup.button.callback("BANK ACH", "account_type_bank_ach"),
-            ],
-            [
-              Markup.button.callback(
-                "BANK ACH PUSH",
-                "account_type_bank_ach_push"
-              ),
-              Markup.button.callback("BANK WIRE", "account_type_bank_wire"),
-            ],
-            [
-              Markup.button.callback(
-                "BANK TRANSFER",
-                "account_type_bank_transfer"
-              ),
-              Markup.button.callback("BANK IFSC", "account_type_bank_ifsc"),
-            ],
-            [Markup.button.callback("BANK IBAN", "account_type_bank_iban")],
-            [Markup.button.callback("❌ Cancel", "cancel_add_beneficiary")],
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.type) {
-        // This will be handled by the button callbacks
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankAccountNumber) {
-        addBeneficiaryState.bankAccount!.bankAccountNumber = text;
-
-        await ctx.reply(
-          "Great! Now, please provide the bank routing number:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankRoutingNumber) {
-        // Validate routing number length (e.g., 9 digits for USA)
-        if (
-          addBeneficiaryState.bankAccount.country === "usa" &&
-          text.length !== 9
-        ) {
-          return ctx.reply(
-            "Invalid routing number. It must be 9 digits for USA."
-          );
-        }
-        addBeneficiaryState.bankAccount!.bankRoutingNumber = text;
-
-        await ctx.reply(
-          "Almost done! Now, please provide the beneficiary's full name as it appears on the bank account:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankBeneficiaryName) {
-        addBeneficiaryState.bankAccount!.bankBeneficiaryName = text;
-
-        await ctx.reply(
-          "Almost there! Please provide the beneficiary's address (with pin code):",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.bankBeneficiaryAddress) {
-        addBeneficiaryState.bankAccount!.bankBeneficiaryAddress = text;
-
-        await ctx.reply(
-          "Last step! Please provide the bank swift code:",
-          Markup.inlineKeyboard([
-            Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-          ])
-        );
-        return;
-      }
-
-      if (!addBeneficiaryState.bankAccount.swiftCode) {
-        addBeneficiaryState.bankAccount!.swiftCode = text;
-
-        // Confirm all details
-        const payload = addBeneficiaryState as CreatePayeeDto;
-
-        await ctx.reply(
-          `✅ Here are the details you provided:\n\n` +
-            `- Nickname: ${payload.nickName}\n` +
-            `- First Name: ${payload.firstName}\n` +
-            `- Last Name: ${payload.lastName}\n` +
-            `- Email: ${payload.email}\n` +
-            `- Phone: ${payload.phoneNumber}\n` +
-            `- Bank Country: ${payload.bankAccount.country}\n` +
-            `- Bank Name: ${payload.bankAccount.bankName}\n` +
-            `- Bank Address: ${payload.bankAccount.bankAddress}\n` +
-            `- Bank Account Type: ${payload.bankAccount.bankAccountType}\n` +
-            `- Account Type: ${payload.bankAccount.type
-              .replace("_", " ")
-              .toUpperCase()}\n` +
-            `- Account Number: ${payload.bankAccount.bankAccountNumber}\n` +
-            `- Routing Number: ${payload.bankAccount.bankRoutingNumber}\n` +
-            `- Beneficiary Name: ${payload.bankAccount.bankBeneficiaryName}\n` +
-            `- Beneficiary Address: ${payload.bankAccount.bankBeneficiaryAddress}\n\n` +
-            `Are you sure you want to add this beneficiary?`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback("✅ Confirm", "confirm_add_beneficiary")],
-            [Markup.button.callback("❌ Cancel", "cancel_add_beneficiary")],
-          ])
-        );
-      }
-    }
-    return;
-  });
-
-  // Handle type selection
-  bot.action("account_type_savings", async (ctx) => {
-    addBeneficiaryState.bankAccount!.bankAccountType = "savings";
-    await ctx.reply(
-      "Selected Savings account. Type Yes to proceed or click the cancel button to exit the process:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_checking", async (ctx) => {
-    addBeneficiaryState.bankAccount!.bankAccountType = "checking";
-    await ctx.reply(
-      "Selected Checking account. Type Yes to proceed or click the cancel button to exit the process:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  // Handle bankAccountType selection
-  bot.action("account_type_web3_wallet", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "web3_wallet";
-    await ctx.reply(
-      "Selected WEB3 WALLET. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_ach", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_ach";
-    await ctx.reply(
-      "Selected BANK ACH. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_ach_push", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_ach_push";
-    await ctx.reply(
-      "Selected BANK ACH PUSH. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_wire", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_wire";
-    await ctx.reply(
-      "Selected BANK WIRE. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_transfer", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_transfer";
-    await ctx.reply(
-      "Selected BANK TRANSFER. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_ifsc", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_ifsc";
-    await ctx.reply(
-      "Selected BANK IFSC. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("account_type_bank_iban", async (ctx) => {
-    addBeneficiaryState.bankAccount!.type = "bank_iban";
-    await ctx.reply(
-      "Selected BANK IBAN. Now, please provide the bank account number:",
-      Markup.inlineKeyboard([
-        Markup.button.callback("❌ Cancel", "cancel_add_beneficiary"),
-      ])
-    );
-  });
-
-  bot.action("confirm_add_beneficiary", async (ctx) => {
-    const payload = addBeneficiaryState as CreatePayeeDto;
-
-    console.log("Payload: ", payload);
-
-    try {
-      const payee = await createPayee(token.accessToken, payload);
-      await ctx.reply(`✅ Beneficiary added successfully!\nID: ${payee.id}`);
-    } catch (error) {
-      console.error("Error adding beneficiary:", error);
-      await ctx.reply("❌ Failed to add beneficiary. Please try again.");
-    }
-  });
-
-  // Handle cancellation
-  bot.action("cancel_add_beneficiary", async (ctx) => {
-    const message = "Process canceled.";
-    addBeneficiaryState = {} as any;
-    await ctx.reply(message);
-    activeProcess = false;
-    return;
-  });
 });
 
+// Handle the /updateBeneficiary command to update an existing beneficiary
 bot.command("updateBeneficiary", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
-
-  const updateBeneficiaryState: Partial<UpdatePayeeDto> = {};
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
-  const [id] = ctx.message.text.split(" ").slice(1);
+  const [id] = ctx.message.text.split(" ").slice(1); // Extract beneficiary ID
   if (!id) {
-    return ctx.reply("Usage: /updateBeneficiary <id>");
+    return ctx.reply("Usage: /updateBeneficiary <id>"); // Handle invalid input
   }
 
-  // Start the process by asking for the nickname
+  // Start the process by asking for the new nickname
   await ctx.reply(
     "Let's update the beneficiary! 🎉\n\nPlease provide the new nickname:",
     Markup.inlineKeyboard([
       Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
     ])
   );
-
-  bot.on("text", async (ctx) => {
-    const text = ctx.message.text;
-
-    if (!updateBeneficiaryState.nickName) {
-      updateBeneficiaryState.nickName = text;
-      await ctx.reply(
-        "Great! Now, please provide the new first name:",
-        Markup.inlineKeyboard([
-          Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-        ])
-      );
-      return;
-    }
-
-    if (!updateBeneficiaryState.firstName) {
-      updateBeneficiaryState.firstName = text;
-      await ctx.reply(
-        "Got it! Now, please provide the new last name:",
-        Markup.inlineKeyboard([
-          Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-        ])
-      );
-      return;
-    }
-
-    if (!updateBeneficiaryState.lastName) {
-      updateBeneficiaryState.lastName = text;
-      await ctx.reply(
-        "Awesome! Now, please provide the new phone number:",
-        Markup.inlineKeyboard([
-          Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-        ])
-      );
-      return;
-    }
-
-    if (!updateBeneficiaryState.phoneNumber) {
-      updateBeneficiaryState.phoneNumber = text
-        .replace("+", "")
-        .replace(" ", "");
-
-      // Confirm all details
-      const payload = updateBeneficiaryState as UpdatePayeeDto;
-
-      await ctx.reply(
-        `✅ Here are the details you provided:\n\n` +
-          `- Nickname: ${payload.nickName}\n` +
-          `- First Name: ${payload.firstName}\n` +
-          `- Last Name: ${payload.lastName}\n` +
-          `- Phone: ${payload.phoneNumber}\n\n` +
-          `Are you sure you want to update this beneficiary?`,
-        Markup.inlineKeyboard([
-          [Markup.button.callback("✅ Confirm", "confirm_update_beneficiary")],
-          [Markup.button.callback("❌ Cancel", "cancel_update_beneficiary")],
-        ])
-      );
-      return;
-    }
-  });
-
-  // Handle confirmation
-  bot.action("confirm_update_beneficiary", async (ctx) => {
-    const userId = ctx.from.id.toString();
-
-    const token = await getUserData(userId);
-
-    if (!token) {
-      return ctx.reply("Please log in first using /login.");
-    }
-
-    try {
-      const payee = await updatePayee(
-        token.accessToken,
-        id,
-        updateBeneficiaryState as UpdatePayeeDto
-      );
-      await ctx.reply(`✅ Beneficiary updated successfully!\nID: ${payee.id}`);
-    } catch (error) {
-      console.error("Error updating beneficiary:", error);
-      await ctx.reply("❌ Failed to update beneficiary. Please try again.");
-    }
-  });
-
-  // Handle cancellation
-  bot.action("cancel_update_beneficiary", async (ctx) => {
-    const message = "Process canceled.";
-    await ctx.reply(message);
-  });
 });
 
+// Handle the /deleteBeneficiary command to delete a beneficiary
 bot.command("deleteBeneficiary", async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const token = await getUserData(userId);
+  const userId = ctx.from.id.toString(); // Get user ID
+  const token = await getUserData(userId); // Fetch user data
 
   if (!token) {
-    return ctx.reply("Please log in first using /login.");
+    return ctx.reply("Please log in first using /login."); // Prompt user to log in if not authenticated
   }
 
-  const [id] = ctx.message.text.split(" ").slice(1);
+  const [id] = ctx.message.text.split(" ").slice(1); // Extract beneficiary ID
   if (!id) {
-    return ctx.reply("Usage: /deleteBeneficiary <id>");
+    return ctx.reply("Usage: /deleteBeneficiary <id>"); // Handle invalid input
   }
 
   try {
-    const result = await deletePayee(token.accessToken, id);
-    await ctx.reply(`✅ Beneficiary deleted successfully!`);
+    const result = await deletePayee(token.accessToken, id); // Delete the beneficiary
+    await ctx.reply(`✅ Beneficiary deleted successfully!`); // Notify user of success
   } catch (error) {
-    console.error("Error deleting beneficiary:", error);
-    await ctx.reply("❌ Failed to delete beneficiary. Please try again.");
+    console.error("Error deleting beneficiary:", error); // Log errors
+    await ctx.reply("❌ Failed to delete beneficiary. Please try again."); // Notify user of failure
   }
 });
 
@@ -2143,18 +1788,21 @@ bot.catch((err, ctx) => {
   ctx.reply("An error occurred. Please try again later.");
 });
 
+// Function to start the bot
 const startBot = async () => {
   try {
-    await connectRedis();
+    await connectRedis(); // Connect to Redis
     console.log("Redis connected.");
+
     // Launch the bot
     bot
       .launch()
-      .then(() => console.log("Bot is running..."))
-      .catch((err) => console.error("Bot failed to start:", err));
+      .then(() => console.log("Bot is running...")) // Log successful launch
+      .catch((err) => console.error("Bot failed to start:", err)); // Log launch errors
   } catch (error) {
-    console.log("Error occurred!", error);
+    console.log("Error occurred!", error); // Log general errors
   }
 };
 
+// Start the bot
 startBot();
