@@ -2,26 +2,41 @@ import { Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import { AuthService } from "../services/authService";
 import { getUserData, setOTPData, UserRedis } from "../libs/redis";
+import { escapeMarkdownV2 } from "../libs/utils";
 
 export const authCommand = (bot: Telegraf<MyContext>) => {
   bot.command("login", async (ctx) => {
+    let loginState: { email: string; sid: string } = {} as any;
+
+    const userId = ctx.from.id.toString(); // Get user ID
+    const userToken = await getUserData(userId); // Fetch user data
+
+    if (userToken) {
+      ctx.reply("User is already logged in."); // Prompt user
+      const userDetails = `
+✅ *Logged In!*\n
+📧 *Email*: ${userToken.user.email}
+💳 *Wallet Address*: ${userToken.user.walletAddress}
+🏦 *Wallet ID*: ${userToken.user.walletId}
+✅ *Status*: ${userToken.user.status.toUpperCase()}
+            `;
+
+      await ctx.reply(escapeMarkdownV2(userDetails), {
+        parse_mode: "MarkdownV2",
+      });
+      return;
+    }
+
     // Prompt the user to enter their email
     await ctx.reply("Please enter your email address:");
 
-    // Set the login state to "awaiting email"
-    ctx.session ??= { isTransferProcessActive: false };
-    if (ctx.session) {
-      ctx.session.loginState = {};
-    }
-
     // Handle email input
-    return bot.on("text", async (ctx) => {
-      if (!ctx.session?.loginState) return; // Ignore if not in login state
-
+    bot.hears(/.*/, async (ctx) => {
       const text = ctx.message.text;
+      console.log({ text });
 
       // Step 1: Handle email input
-      if (!ctx.session.loginState.email) {
+      if (!loginState.email) {
         const email = text.trim();
 
         // Validate email (basic check)
@@ -32,7 +47,7 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         }
 
         // Save the email in the session
-        ctx.session.loginState.email = email;
+        loginState.email = email;
 
         try {
           // Request OTP
@@ -48,12 +63,11 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         } catch (error) {
           console.error("Error sending OTP:", error);
           await ctx.reply("Failed to send OTP. Please try again.");
-          delete ctx.session.loginState; // Reset the login state
         }
+        return;
       }
-
       // Step 2: Handle OTP input
-      else if (!ctx.session.loginState.sid) {
+      if (!loginState.sid) {
         const otp = text.trim();
 
         // Validate OTP (basic check)
@@ -67,6 +81,7 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         // Verify the OTP
         const token = await AuthService.verifyOTP(userId, otp);
 
+        console.log({ token });
         if (!token) {
           return ctx.reply(
             "OTP expired or invalid. Please start over with /login."
@@ -76,23 +91,25 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         try {
           // Display user details on successful login
           const userDetails = `
-                ✅ *Logged in successfully!*\n\n
-                📧 *Email*: ${token.user.email}\n
-                💳 *Wallet Address*: ${token.user.walletAddress}\n
-                🏦 *Wallet Type*: ${token.user.walletAccountType.toUpperCase()}\n
-                ✅ *Status*: ${token.user.status.toUpperCase()}
-              `;
+✅ *Logged in successfully!*\n
+📧 *Email*: ${token.user.email}
+💳 *Wallet Address*: ${token.user.walletAddress}
+🏦 *Wallet ID*: ${token.user.walletId}
+✅ *Status*: ${token.user.status.toUpperCase()}
+            `;
 
-          await ctx.reply(userDetails, { parse_mode: "MarkdownV2" });
+          await ctx.reply(escapeMarkdownV2(userDetails), {
+            parse_mode: "MarkdownV2",
+          });
 
-          // Reset the login state
-          delete ctx.session.loginState;
+          loginState = { email: "", sid: "" }; // Reset the login state
 
           return;
         } catch (error) {
           console.error("Error verifying OTP:", error);
           await ctx.reply("Invalid OTP. Please try again.");
-          delete ctx.session.loginState; // Reset the login state
+          loginState = { email: "", sid: "" }; // Reset the login state
+
           return;
         }
       }
