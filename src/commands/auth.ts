@@ -1,10 +1,72 @@
-import { Telegraf } from "telegraf";
+import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import { AuthService } from "../services/authService";
 import { getUserData, setOTPData, UserRedis } from "../libs/redis";
-import { escapeMarkdownV2 } from "../libs/utils";
+import { getWalletDefaultBalance } from "../libs/utils";
+import { getKycDetails } from "../libs/kyc";
+import {
+  balanceCallback,
+  depositCallback,
+  helpCallback,
+  transferCallback,
+  transferOffRampCallback,
+} from "../handlers/callbackHandler";
 
 export const authCommand = (bot: Telegraf<MyContext>) => {
+  const logResponse = async (ctx: MyContext, token: UserRedis) => {
+    const wallet = await getWalletDefaultBalance(token.accessToken);
+
+    if (!wallet) {
+      return ctx.reply("No default wallet found.");
+    }
+    const userDetails = `
+✅ Logged In!\n
+📧 Email: ${token.user.email}
+💵 Balance: ${wallet.balance} ${wallet.symbol}
+💳 Wallet Address: ${wallet.address}
+🏦 Wallet ID: ${token.user.walletId}
+✅ Status: ${token.user.status.toUpperCase()}
+    `;
+
+    const kycResponse = token
+      ? await getKycDetails(token.accessToken, token.user.id)
+      : null;
+
+    await ctx.reply(
+      userDetails,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.url(
+            "⚠️COMPLETE YOUR KYC",
+            "https://payout.copperx.io/app/kyc",
+            !!kycResponse
+          ),
+        ],
+        [
+          Markup.button.callback("💰 Deposit USC", "deposit"),
+          Markup.button.callback("💰 Withdraw USC", "transfer"),
+        ],
+        [Markup.button.callback("💳 Check Balance", "balance")],
+        [Markup.button.callback("🏦 Request Off-Ramp", "transfer_offramp")],
+        [Markup.button.callback("Help", "help")],
+      ])
+    );
+
+    // Define the help message with a list of available commands
+    bot.action("help", helpCallback);
+
+    // Handle the /balance command to fetch and display wallet balances
+    bot.action("balance", balanceCallback);
+
+    bot.action("deposit", async (ctx) => depositCallback(bot, ctx));
+
+    bot.action("transfer", async (ctx) => transferCallback(bot, ctx, token));
+
+    bot.action("transfer_offramp", async (ctx) =>
+      transferOffRampCallback(bot, ctx, token)
+    );
+  };
+
   bot.command("login", async (ctx) => {
     let loginState: { email: string; sid: string } = {} as any;
 
@@ -13,17 +75,7 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
 
     if (userToken) {
       ctx.reply("User is already logged in."); // Prompt user
-      const userDetails = `
-✅ *Logged In!*\n
-📧 *Email*: ${userToken.user.email}
-💳 *Wallet Address*: ${userToken.user.walletAddress}
-🏦 *Wallet ID*: ${userToken.user.walletId}
-✅ *Status*: ${userToken.user.status.toUpperCase()}
-            `;
-
-      await ctx.reply(escapeMarkdownV2(userDetails), {
-        parse_mode: "MarkdownV2",
-      });
+      await logResponse(ctx, userToken);
       return;
     }
 
@@ -81,7 +133,6 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         // Verify the OTP
         const token = await AuthService.verifyOTP(userId, otp);
 
-        console.log({ token });
         if (!token) {
           return ctx.reply(
             "OTP expired or invalid. Please start over with /login."
@@ -89,18 +140,7 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         }
 
         try {
-          // Display user details on successful login
-          const userDetails = `
-✅ *Logged in successfully!*\n
-📧 *Email*: ${token.user.email}
-💳 *Wallet Address*: ${token.user.walletAddress}
-🏦 *Wallet ID*: ${token.user.walletId}
-✅ *Status*: ${token.user.status.toUpperCase()}
-            `;
-
-          await ctx.reply(escapeMarkdownV2(userDetails), {
-            parse_mode: "MarkdownV2",
-          });
+          await logResponse(ctx, token);
 
           loginState = { email: "", sid: "" }; // Reset the login state
 
