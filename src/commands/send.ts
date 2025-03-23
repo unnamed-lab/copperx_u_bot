@@ -32,7 +32,7 @@ export const sendCommand = (bot: Telegraf<MyContext>) => {
       const result = await sendFundsByEmail(
         token.accessToken,
         email,
-        Number(amount)
+        Number(amount) * 100_000_000
       );
       ctx.reply(`Funds sent: ${JSON.stringify(result)}`);
     } catch (error) {
