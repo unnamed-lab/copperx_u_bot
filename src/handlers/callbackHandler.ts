@@ -5,6 +5,7 @@ import {
   escapeMarkdownV2,
   formatBalances,
   getWalletBalances,
+  getWalletDefaultBalance,
 } from "../libs/utils";
 import { MyContext } from "../types/context";
 import { Context, Markup, Telegraf } from "telegraf";
@@ -203,11 +204,13 @@ export const transferWalletCallback = async (
       await ctx.reply(
         "Please select the currency:",
         Markup.inlineKeyboard([
-          ...chunkCurrencies(currencies, 3).map((chunk) =>
-            chunk.map((currency) =>
-              Markup.button.callback(currency, `currency_${currency}`)
-            )
-          ),
+          // Uncomment and use if other currencies are available
+          //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+          //     chunk.map((currency) =>
+          //       Markup.button.callback(currency, `currency_${currency}`)
+          //     )
+          //   ),
+          [Markup.button.callback("USDC", `currency_USDC`)],
           [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
           [Markup.button.callback("❌ Cancel", "cancel_transfer")],
         ])
@@ -225,11 +228,13 @@ export const transferWalletCallback = async (
     await ctx.reply(
       "Please select the currency:",
       Markup.inlineKeyboard([
-        ...chunkCurrencies(currencies, 3).map((chunk) =>
-          chunk.map((currency) =>
-            Markup.button.callback(currency, `currency_${currency}`)
-          )
-        ),
+        // Uncomment and use if other currencies are available
+        //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+        //     chunk.map((currency) =>
+        //       Markup.button.callback(currency, `currency_${currency}`)
+        //     )
+        //   ),
+        [Markup.button.callback("USDC", `currency_USDC`)],
         [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
         [Markup.button.callback("❌ Cancel", "cancel_transfer")],
       ])
@@ -257,6 +262,12 @@ export const transferWalletCallback = async (
   // Handle transfer confirmation
   bot.action("confirm_wallet_transfer", async (ctx) => {
     console.log("Payload", transferPayload);
+
+    const balance = await getWalletDefaultBalance(token.accessToken);
+    if (parseFloat(balance.balance) < parseFloat(transferPayload.amount!)) {
+      return ctx.reply("❌ Insufficient balance. Please try again.");
+    }
+
     try {
       const transfer = await withdrawFundsWallet(
         token.accessToken,
@@ -351,11 +362,13 @@ export const transferWalletCallback = async (
     await ctx.reply(
       "Please select the currency:",
       Markup.inlineKeyboard([
-        ...chunkCurrencies(currencies, 3).map((chunk) =>
-          chunk.map((currency) =>
-            Markup.button.callback(currency, `currency_${currency}`)
-          )
-        ),
+        // Uncomment and use if other currencies are available
+        //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+        //     chunk.map((currency) =>
+        //       Markup.button.callback(currency, `currency_${currency}`)
+        //     )
+        //   ),
+        [Markup.button.callback("USDC", `currency_USDC`)],
         [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
         [Markup.button.callback("❌ Cancel", "cancel_transfer")],
       ])
@@ -472,11 +485,13 @@ export const transferEmailCallback = async (
           await ctx.reply(
             "Please select the currency:",
             Markup.inlineKeyboard([
-              ...chunkCurrencies(currencies, 3).map((chunk) =>
-                chunk.map((currency) =>
-                  Markup.button.callback(currency, `currency_${currency}`)
-                )
-              ),
+              // Uncomment and use if other currencies are available
+              //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+              //     chunk.map((currency) =>
+              //       Markup.button.callback(currency, `currency_${currency}`)
+              //     )
+              //   ),
+              [Markup.button.callback("USDC", `currency_USDC`)],
               [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
               [Markup.button.callback("❌ Cancel", "cancel_transfer")],
             ])
@@ -494,11 +509,13 @@ export const transferEmailCallback = async (
         await ctx.reply(
           "Please select the currency:",
           Markup.inlineKeyboard([
-            ...chunkCurrencies(currencies, 3).map((chunk) =>
-              chunk.map((currency) =>
-                Markup.button.callback(currency, `currency_${currency}`)
-              )
-            ),
+            // Uncomment and use if other currencies are available
+            //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+            //     chunk.map((currency) =>
+            //       Markup.button.callback(currency, `currency_${currency}`)
+            //     )
+            //   ),
+            [Markup.button.callback("USDC", `currency_USDC`)],
             [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
             [Markup.button.callback("❌ Cancel", "cancel_transfer")],
           ])
@@ -527,6 +544,14 @@ export const transferEmailCallback = async (
       bot.action("confirm_email_transfer", async (ctx) => {
         try {
           console.log("Payload", transferPayload);
+
+          const balance = await getWalletDefaultBalance(token.accessToken);
+          if (
+            parseFloat(balance.balance) < parseFloat(transferPayload.amount!)
+          ) {
+            return ctx.reply("❌ Insufficient balance. Please try again.");
+          }
+
           const transfer = await withdrawFundsEmail(
             token.accessToken,
             transferPayload as CreateSendTransferDto
