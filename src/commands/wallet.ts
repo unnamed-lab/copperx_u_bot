@@ -10,6 +10,7 @@ import {
 } from "../libs/utils";
 import { getUserData } from "../libs/redis";
 import QRCode from "qrcode";
+import { receiveCallback } from "../handlers/callbackHandler";
 
 export const walletCommand = async (bot: Telegraf<MyContext>) => {
   // Handle the /wallets command to fetch and display wallet details
@@ -127,112 +128,5 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
   });
 
   // Command to display wallet details and provide a button to generate QR code
-  bot.command("wallet", async (ctx) => {
-    const userId = ctx.from.id.toString();
-    try {
-      const token = await getUserData(userId);
-
-      if (!token) {
-        return ctx.reply("Please log in first using /login.");
-      }
-
-      const wallet = await getWalletDefault(token.accessToken);
-
-      if (!wallet) {
-        return ctx.reply("No default wallet found.");
-      }
-
-      const networkName =
-        chains.find((el) => el.id.toString() === wallet.network)?.name ||
-        "unknown";
-
-      const formattedBalances = `*Your Wallet*\n🌐 *Network*: ${networkName}\n🔗 *Address*: ${
-        wallet.walletAddress || "unknown"
-      }\n🪪 Wallet ID: ${wallet.id || "unknown"}`;
-
-      await ctx.reply(escapeMarkdownV2(formattedBalances), {
-        parse_mode: "MarkdownV2",
-        reply_markup: Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "Get QR Code",
-              `get_qr_${wallet.walletAddress}`
-            ),
-          ],
-        ]).reply_markup,
-      });
-    } catch (error) {
-      console.error("Error fetching wallet details:", error);
-      await ctx.reply("Failed to fetch wallet details. Please try again.");
-    }
-
-    // Handle QR code generation
-    bot.action(/get_qr_(.+)/, async (ctx) => {
-      const walletAddress = ctx.match[1]; // Extract wallet address from the callback data
-      const userId = ctx.from.id.toString();
-      const token = await getUserData(userId);
-
-      if (!token) {
-        return ctx.reply("Please log in first using /login.");
-      }
-
-      try {
-        const wallet = await getWalletDefault(token.accessToken);
-
-        if (!wallet) {
-          return ctx.reply("No default wallet found.");
-        }
-
-        // Generate QR code for the wallet address
-        const qrCode = await QRCode.toBuffer(walletAddress, {
-          errorCorrectionLevel: "H",
-          type: "png",
-          width: 400,
-          margin: 2,
-        });
-          
-          const networkName =
-            chains.find((el) => el.id.toString() === wallet.network)?.name ||
-            "unknown";
-
-        // Create caption with wallet address
-        const caption =
-          `📥 **Deposit Address**\n\n` +
-          `Network: ${networkName}\n` +
-          `Address: \`${walletAddress}\`\n\n` +
-          `Scan the QR code or copy the address above to send funds`;
-
-        // Send QR code and address to the user
-        await ctx.replyWithPhoto(
-          { source: qrCode },
-          {
-            caption: caption,
-            parse_mode: "MarkdownV2",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: "Copy Address",
-                    callback_data: `copy_address_${walletAddress}`,
-                  },
-                ],
-              ],
-            },
-          }
-        );
-      } catch (error) {
-        console.error("Error generating QR code:", error);
-        await ctx.reply("Failed to generate QR code. Please try again.");
-      }
-    });
-
-    // Handle copy address button
-    bot.action(/copy_address_(.+)/, async (ctx) => {
-      const walletAddress = ctx.match[1];
-      await ctx.answerCbQuery();
-      await ctx.reply(`Here's your wallet address:\n\`${walletAddress}\``, {
-        parse_mode: "MarkdownV2",
-      });
-    });
-  });
+  bot.command("wallet", async (ctx) => receiveCallback(bot, ctx));
 };
