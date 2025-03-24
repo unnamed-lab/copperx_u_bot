@@ -2,6 +2,7 @@ import { Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import { getUserData } from "../libs/redis";
 import { getWalletDefaultBalance } from "../libs/utils";
+import { balanceCallback } from "../handlers/callbackHandler";
 
 export const balanceCommand = (bot: Telegraf<MyContext>) => {
   // Handle the /balance command to check the user's balance
@@ -23,11 +24,16 @@ export const balanceCommand = (bot: Telegraf<MyContext>) => {
     const balance = await getWalletDefaultBalance(token.accessToken);
     const decimals = balance?.decimals || 0;
 
+    const formattedAmount = (
+      parseInt(balance.balance) / Math.pow(10, decimals)
+    ).toFixed(2);
+
     // Send the user's balance as a message
     ctx.reply(
-      `💰 Your current balance is: ${
-        (Number(balance?.balance) / 1) * (10 ^ decimals)
-      } ${balance?.symbol}`
+      `💰 Your current balance is: ${formattedAmount} ${balance?.symbol}`
     );
   });
+
+  // Command to check the user's balance
+  bot.command("balances", balanceCallback);
 };

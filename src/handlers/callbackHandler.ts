@@ -25,7 +25,17 @@ import {
   withdrawFundsEmail,
   withdrawFundsWallet,
 } from "../libs/funds";
-import { Country, CreateOfframpTransferDto, CreateSendTransferDto, CreateWalletWithdrawTransferDto, Currency, depositFundsPayload, PurposeCode, RecipientRelationship, SourceOfFunds } from "../types/transactions";
+import {
+  Country,
+  CreateOfframpTransferDto,
+  CreateSendTransferDto,
+  CreateWalletWithdrawTransferDto,
+  Currency,
+  depositFundsPayload,
+  PurposeCode,
+  RecipientRelationship,
+  SourceOfFunds,
+} from "../types/transactions";
 
 /**
  * Generates a help message for the Copperx Bot with a list of available commands.
@@ -106,8 +116,7 @@ export const balanceCallback = async (
       ctx.chat.id,
       loadingMessage.message_id,
       undefined,
-      formattedBalances,
-      { parse_mode: "MarkdownV2" } // Use MarkdownV2 for formatting
+      formattedBalances
     );
   } catch (error) {
     // Handle errors
