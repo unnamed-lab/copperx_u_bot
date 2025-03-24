@@ -1,6 +1,8 @@
 import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import {
+  chains,
+  escapeMarkdownV2,
   formatWallets,
   getWallet,
   getWalletDefault,
@@ -13,48 +15,42 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
   // Handle the /wallets command to fetch and display wallet details
   // Command to initiate wallet interaction
   bot.command("wallets", async (ctx) => {
-    await ctx.reply(
-      "Do you want to check your wallets?",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Yes", "confirm_wallet")],
-        [Markup.button.callback("No", "cancel_wallet")],
-        [Markup.button.callback("Set Default Wallet", "set_default_wallet")],
-      ])
-    );
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
 
-    // Handle "Yes" button (fetch wallet details)
-    bot.action("confirm_wallet", async (ctx) => {
-      const userId = ctx.from.id.toString();
-      const token = await getUserData(userId);
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
 
-      if (!token) {
-        return ctx.reply("Please log in first using /login.");
-      }
+    if (!ctx.chat) return ctx.reply("Invalid chat.");
 
-      if (!ctx.chat) return ctx.reply("Invalid chat.");
+    const loadingMessage = await ctx.reply("Fetching wallets...");
 
-      const loadingMessage = await ctx.reply("Fetching wallets...");
+    try {
+      const wallets = await getWallet(token.accessToken);
+      const formattedBalances = formatWallets(wallets);
 
-      try {
-        const wallets = await getWallet(token.accessToken);
-        const formattedBalances = formatWallets(wallets);
-
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          loadingMessage.message_id,
-          undefined,
-          formattedBalances,
-          { parse_mode: "MarkdownV2" }
-        );
-      } catch (error) {
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          loadingMessage.message_id,
-          undefined,
-          "Failed to fetch wallets."
-        );
-      }
-    });
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loadingMessage.message_id,
+        undefined,
+        escapeMarkdownV2(formattedBalances),
+        {
+          parse_mode: "MarkdownV2",
+          reply_markup: Markup.inlineKeyboard([
+            Markup.button.callback("Set Default Wallet", "set_default_wallet"),
+            // Use Markup to create the button
+          ]).reply_markup,
+        }
+      );
+    } catch (error) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loadingMessage.message_id,
+        undefined,
+        "Failed to fetch wallets."
+      );
+    }
 
     // Handle "No" button (cancel)
     bot.action("cancel_wallet", (ctx) => {
@@ -80,7 +76,9 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
         // Create buttons for each wallet
         const walletButtons = wallets.map((wallet) => [
           Markup.button.callback(
-            `${wallet.network.toUpperCase()} - ${wallet.walletAddress.slice(
+            `${
+              chains.find((el) => el.id.toString() === wallet.network)?.name
+            } - ${wallet.walletAddress.slice(
               0,
               6
             )}...${wallet.walletAddress.slice(-6)}`,
@@ -115,8 +113,11 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
           return ctx.reply("Failed to set default wallet. Please try again.");
         }
 
+        const networkName =
+          chains.find((el) => el.id.toString() === wallet.network)?.name ||
+          "unknown";
         await ctx.reply(
-          `✅ Wallet [${wallet.walletAddress}] is now your default wallet.`
+          `✅ Wallet [${wallet.walletAddress}] on ${networkName} network is now your default wallet.`
         );
       } catch (error) {
         console.error("Error setting default wallet:", error);
@@ -141,13 +142,15 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
         return ctx.reply("No default wallet found.");
       }
 
-      const formattedBalances = `*Your Wallet*\n\n🌐 *Network*: ${wallet.network.toUpperCase()}\n🔗 *Address*: ${
-        wallet.walletAddress || "unknown"
-      }\n🤖 *Wallet Type*: ${(wallet.walletType || "unknown")
-        .replace("_", " ")
-        .toUpperCase()}\n🪪 Wallet ID: ${wallet.id || "unknown"}`;
+      const networkName =
+        chains.find((el) => el.id.toString() === wallet.network)?.name ||
+        "unknown";
 
-      await ctx.reply(formattedBalances, {
+      const formattedBalances = `*Your Wallet*\n🌐 *Network*: ${networkName}\n🔗 *Address*: ${
+        wallet.walletAddress || "unknown"
+      }\n🪪 Wallet ID: ${wallet.id || "unknown"}`;
+
+      await ctx.reply(escapeMarkdownV2(formattedBalances), {
         parse_mode: "MarkdownV2",
         reply_markup: Markup.inlineKeyboard([
           [
@@ -187,11 +190,15 @@ export const walletCommand = async (bot: Telegraf<MyContext>) => {
           width: 400,
           margin: 2,
         });
+          
+          const networkName =
+            chains.find((el) => el.id.toString() === wallet.network)?.name ||
+            "unknown";
 
         // Create caption with wallet address
         const caption =
           `📥 **Deposit Address**\n\n` +
-          `Network: ${wallet.network.toUpperCase()}\n` +
+          `Network: ${networkName}\n` +
           `Address: \`${walletAddress}\`\n\n` +
           `Scan the QR code or copy the address above to send funds`;
 

@@ -159,19 +159,21 @@ export const getWalletDefaultBalance = async (
 export const formatWallets = (wallets: IGetWallet[] | null) => {
   if (!wallets) return "No wallet available.";
 
-  let formattedMessage = "*Your Wallets* 💼\n\n";
+  let formattedMessage = "Your Wallets 💼\n\n";
 
-  wallets.forEach((el) => {
-    const { network, walletAddress: address, isDefault, walletType, id } = el;
+  wallets
+    .sort((a, b) => Number(a.network) - Number(b.network))
+    .forEach((el) => {
+      const { network, walletAddress: address, isDefault, walletType, id } = el;
 
-    formattedMessage += `🌐 *Network*: ${network.toUpperCase()}\n🔗 *Address*: ${address}\n🤖 *Wallet Type*: ${walletType
-      .replace("_", " ")
-      .toUpperCase()}\n🔥*Default*: ${
-      isDefault ? "TRUE" : "FALSE"
-    }\n🪪 Wallet ID: ${id}\n`;
+      formattedMessage += `🌐 Network: ${
+        chains.find((el) => el.id.toString() === network)?.name
+      } ${
+        isDefault ? "(Default)" : ""
+      }\n🔗 Address: ${address}\n🪪 Wallet ID: ${id}\n`;
 
-    formattedMessage += "\n";
-  });
+      formattedMessage += "\n";
+    });
 
   return formattedMessage;
 };
@@ -182,8 +184,8 @@ export const setWalletDefault = async (
 ): Promise<IGetWallet | null> => {
   const response = await axios.post(
     "https://income-api.copperx.io/api/wallets/default",
+    { walletId },
     {
-      walletId,
       headers: { Authorization: `Bearer ${token}` },
     }
   );
@@ -196,7 +198,7 @@ export const setWalletDefault = async (
 export const generateAIResponse = async (message: string) => {
   try {
     const response = await client.chat.completions.create({
-      model:  'caramelldansen-1',
+      model: "caramelldansen-1",
       messages: [
         {
           role: "system",
