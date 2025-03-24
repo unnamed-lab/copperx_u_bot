@@ -4,221 +4,229 @@
 
 The **Copperx Telegram Bot** is a powerful tool designed to simplify stablecoin transactions for individuals and businesses. Built to integrate seamlessly with **Copperx Payout's API**, this bot allows users to **deposit**, **withdraw**, and **transfer USDC** directly through Telegram, eliminating the need to visit the Copperx web app. The bot is developed using **TypeScript/Node.js** and adheres to best practices for clean, maintainable, and secure code.
 
-This document outlines the project's technical requirements, core features, implementation details, and deliverables. It also provides instructions for setting up and running the bot.
+**Live Bot**: [https://t.me/copperx_u_bot](https://t.me/copperx_u_bot)  
+**Server Deployment**: [On Render](#)
 
 ---
 
-## 🛠️ Technical Requirements
+## ✨ Features
 
-The bot is built with the following technical specifications:
-
-- **Programming Language**: TypeScript/Node.js.
-- **Framework**: Telegraf for Telegram bot development.
-- **Code Quality**: Clean, modular, and maintainable code structure.
-- **Version Control**: Comprehensive Git history with meaningful commit messages.
-- **Type Safety**: Strong type safety enforced throughout the codebase.
-- **Error Handling**: Robust error handling with clear user feedback.
-- **Security**: Secure handling of user credentials and sensitive data.
-- **Documentation**: Thorough documentation, including setup instructions and API integration details.
+- **Authentication**: Connect to your Copperx account using email OTP.
+- **Profile Management**: View profile information and KYC status.
+- **Wallet Management**: View wallets, check balances, and set default wallets.
+- **Transaction History**: Review transaction history with detailed views.
+- **Fund Transfers**: Send funds via email, wallet, or bank withdrawal.
+- **Real-time Notifications**: Receive push notifications for new deposits.
+- **Security**: Rate limiting, brute force protection, and secure session handling.
 
 ---
 
-## 📚 API Documentation
+## 🛠️ Technology Stack
 
-The bot integrates with the **Copperx Payout API**, which provides endpoints for authentication, wallet management, fund transfers, and notifications. The complete API documentation is available at:  
-[Copperx API Docs](https://income-api.copperx.io/api/doc).
-
-If you encounter any issues or have questions, feel free to reach out to the Copperx team at:  
-[Copperx Community](https://t.me/copperxcommunity/2991).
-
----
-
-## ✨ Core Features
-
-### 1. **Authentication & Account Management**
-
-- **Features**:
-  - User login/authentication using Copperx credentials.
-  - View account profile and status.
-  - Check KYC/KYB approval status.
-- **API Endpoints**:
-  - `/api/auth/email-otp/request`: Request OTP for login.
-  - `/api/auth/email-otp/authenticate`: Authenticate using OTP.
-  - `/api/auth/me`: Fetch user profile.
-  - `/api/kycs`: Check KYC/KYB status.
-- **Implementation Notes**:
-  - Redirect users to the Copperx platform if KYC/KYB is not approved.
-  - Securely store session tokens and implement session refresh mechanisms.
-  - Handle API rate limits gracefully.
-
----
-
-### 2. **Wallet Management**
-
-- **Features**:
-  - View wallet balances across multiple networks.
-  - Set a default wallet for transactions.
-  - Deposit funds into the wallet.
-  - View transaction history.
-- **API Endpoints**:
-  - `/api/wallets`: Fetch all wallets.
-  - `/api/wallets/balances`: Fetch wallet balances.
-  - `/api/wallets/default`: Set or fetch the default wallet.
-  - `/api/transfers`: Fetch transaction history.
-- **Implementation Notes**:
-  - Display wallet balances in a user-friendly format.
-  - Allow users to set a default wallet for seamless transactions.
-
----
-
-### 3. **Fund Transfers**
-
-- **Features**:
-  - Send funds to email addresses.
-  - Send funds to external wallet addresses.
-  - Withdraw funds to bank accounts.
-  - View the last 10 transactions.
-- **API Endpoints**:
-  - `/api/transfers/send`: Send funds via email.
-  - `/api/transfers/wallet-withdraw`: Withdraw funds to a wallet.
-  - `/api/transfers/offramp`: Withdraw funds to a bank account.
-  - `/api/transfers/send-batch`: Perform bulk transfers.
-  - `/api/transfers?page=1&limit=10`: Fetch recent transactions.
-- **Implementation Notes**:
-  - Validate recipient information before initiating transfers.
-  - Display transaction fees and confirmations for security.
-
----
-
-### 4. **Deposit Notifications**
-
-- **Features**:
-  - Receive real-time deposit notifications via Pusher.
-- **API Endpoints**:
-  - `/api/notifications/auth`: Authenticate Pusher connections.
-- **Implementation Notes**:
-  - Use Pusher to subscribe to private channels (`private-org-${organizationId}`).
-  - Listen for `deposit` events and notify users via Telegram.
-  - Format notifications with relevant transaction details.
-
----
-
-### 5. **Bot Interaction Design**
-
-- **Features**:
-  - Intuitive command structure (e.g., `/balance`, `/send`, `/withdraw`).
-  - Interactive menus and inline keyboards for complex operations.
-  - Help commands and clear instructions for users.
-  - Support for natural language queries.
-- **Implementation Notes**:
-  - Use Markdown formatting for better readability.
-  - Provide a link to Copperx support for additional assistance.
-
----
-
-## 🔒 Security Considerations
-
-- **Authentication**: Implement secure OTP-based login flows.
-- **Session Management**: Store session tokens securely and handle session expiration.
-- **Data Security**: Never store plaintext passwords or sensitive information.
-- **Transaction Security**: Include confirmation steps for fund transfers.
-- **Telegram Bot API Best Practices**: Follow Telegram's guidelines for secure bot development.
-
----
-
-## 📦 Deliverables
-
-1. **GitHub Repository**:
-
-   - A complete repository with the bot's source code.
-   - Include a detailed `README.md` for setup and usage instructions.
-
-2. **Deployed Bot**:
-
-   - Deploy the bot using a free hosting service like [Render](https://render.com/).
-   - Provide the bot's username for testing.
-
-3. **Documentation**:
-
-   - **Setup Instructions**: Step-by-step guide for setting up the bot locally.
-   - **API Integration Details**: Explanation of how the bot integrates with the Copperx API.
-   - **Command Reference**: List of all available commands and their usage.
-   - **Troubleshooting Guide**: Common issues and solutions.
-
-4. **Optional**:
-   - Showcase the bot on social media (e.g., X/Twitter) and tag Copperx.
+- **Framework**: Telegraf (Telegram Bot Framework for TypeScript)
+- **Backend**: Node.js, TypeScript
+- **Database**: Redis for session storage and OTP caching
+- **Real-time Updates**: Pusher for deposit notifications
+- **API Integration**: Copperx API for account management, wallets, and transactions
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. **Clone the Repository**
+### Prerequisites
 
-```bash
-git clone https://github.com/unnamed-lab/copperx_u_bot.git
-cd copperx-telegram-bot
-```
+- Node.js (v16+)
+- Redis instance
+- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+- Copperx API credentials
 
-### 2. **Install Dependencies**
+### Installation
 
-```bash
-npm install
-```
+1. Clone the repository:
 
-### 3. **Set Up Environment Variables**
+   ```bash
+   git clone https://github.com/unnamed-lab/copperx_u_bot.git
+   cd copperx_u_bot
+   ```
 
-Create a `.env` file and add the following variables:
+2. Install dependencies:
 
-```bash
-TELEGRAM_BOT_TOKEN=your-telegram-bot-token
-PUSHER_KEY=xxx
-PUSHER_CLUSTER=xxx
-PUSHER_SECRET=xxxx
-PUSHER_ID=xxxx
-COPPERX_API_KEY=your-copperx-api-key
-REDIS_URL=xxx
-OPENAI_API_KEY=your-openai-api-key
-ZUKI_API=xxx
-```
+   ```bash
+   npm install
+   ```
 
-### 4. **Run the Bot**
+3. Rename `example.env` to `.env` in the project root and fill with your secret keys:
 
-- For development:
+   ```bash
+   TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+   PUSHER_KEY=xxx
+   PUSHER_CLUSTER=xxx
+   PUSHER_SECRET=xxxx
+   PUSHER_ID=xxxx
+   COPPERX_API_KEY=your-copperx-api-key
+   REDIS_URL=xxx
+   OPENAI_API_KEY=your-openai-api-key
+   ZUKI_API=xxx
+   ```
 
-  ```bash
-  npm run dev
-  ```
+4. Build the project:
 
-- For production:
+   ```bash
+   npm run build
+   ```
 
-  ```bash
-  npm run build
-  npm start
-  ```
+5. Start the bot:
+
+   ```bash
+   npm start
+   ```
 
 ---
 
-## 📄 Documentation
+## 📚 API Integration
 
-For detailed documentation on setting up and using the bot, refer to the [Documentation](docs/README.md).
+The bot integrates with the **Copperx API** for all functionality. Here are the key integration points:
+
+### Authentication
+
+- **Email OTP Request**: `POST /api/auth/email-otp/request`
+- **OTP Verification**: `POST /api/auth/email-otp/authenticate`
+- **User Profile**: `GET /api/auth/me`
+
+### Wallet Management
+
+- **Get Wallets**: `GET /api/wallets`
+- **Set Default Wallet**: `POST /api/wallets/default`
+- **Get Default Wallet**: `GET /api/wallets/default`
+- **Get Wallet Balances**: `GET /api/wallets/balances`
+- **Get Transaction History**: `/api/transfers?page=1&limit=10`
+
+### KYC Verification
+
+- **Get KYC Status**: `GET /api/kycs`
+
+### Fund Transfers
+
+- **Email Transfer**: `/api/transfers/send`
+- **Wallet Transfer**: `/api/transfers/wallet-withdraw`
+- **Bank Withdrawal**: `/api/transfers/offramp`
+- **Bulk Transfers**: `/api/transfers/send-batch`
+
+### Notifications
+
+- **Pusher Authentication**: `POST /api/notifications/auth`
+
+---
+
+## 📄 Project Structure
+
+```bash
+src/
+├── index.ts            # Entry point
+├── bot.ts              # Bot instance creation
+├── middleware/         # Bot middleware configuration and setup
+│   ├── authentication.ts     # Authentication middleware
+│   └── rateLimit.ts    # Rate limiter middleware
+├── commands/           # Command definitions
+│   ├── auth.ts         # Authentication features
+│   ├── beneficiary.ts  # Beneficiary features
+│   ├── deposit.ts      # Deposit features
+│   ├── help.ts         # Help information command
+│   ├── kyc.ts          # KYC verification features
+│   ├── logout.ts       # Logout feature
+│   ├── notifications.ts  # Deposit notifications using Pusher
+│   ├── send.ts         # Funds transfer (email) features
+│   ├── start.ts        # Start features
+│   ├── transactions.ts   # Transaction history features
+│   └── wallet.ts       # Wallet management features
+├── types/              # TypeScript type definitions
+│   ├── context.ts      # Context types
+│   ├── kyc.ts          # KYC types
+│   ├── transaction.ts  # Transaction types
+│   └── user.ts         # User and session types
+├── handlers/           # Bot events handlers
+│   ├── aiHandler.ts    # Handles ai event (if enabled)
+│   ├── callbackHandler.ts    # Handles callbacks
+│   ├── errorHandler.ts   # Handles error callbacks
+│   └── pusherHandler.ts    # Handles Pusher events
+└── libs/              # Library of functions used in the project
+```
+
+---
+
+## 📜 Command Reference
+
+| Command          | Description                            |
+| ---------------- | -------------------------------------- |
+| `/start`         | Start the bot and connect your account |
+| `/login`         | Log in to your Copperx account         |
+| `/profile`       | View your profile information          |
+| `/kyc`           | Check your KYC verification status     |
+| `/wallets`       | Access your wallet management menu     |
+| `/balance`       | Check your account balance             |
+| `/transactions`  | View your transaction history          |
+| `/deposit`       | View deposit information               |
+| `/send`          | Send funds via email or wallet         |
+| `/withdraw`      | Withdraw funds to a bank account       |
+| `/notifications` | Set up deposit notifications           |
+| `/help`          | Get help and support                   |
+| `/logout`        | Disconnect your account                |
+
+---
+
+## 🔒 Security Features
+
+### Rate Limiting
+
+The bot implements rate limiting to prevent abuse:
+
+- Maximum of 5 authentication attempts within a 15-minute window.
+- 30-minute cooldown after too many failed attempts.
+- Proper user feedback about remaining attempts.
+
+### Session Management
+
+- Secure session storage in Redis.
+- Session expiration based on token expiry.
+- Session clearing on logout.
+
+### Error Handling
+
+- Comprehensive error logging.
+- User-friendly error messages.
+- Graceful degradation when API is unavailable.
+
+---
+
+## 🚧 Future Improvements
+
+- In-bot KYC/KYB verification.
+- Add two-factor authentication for high-value transactions.
+- Allow users to schedule recurring or future-dated transactions.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the [Contributing Guidelines](CONTRIBUTING.md) for more information.
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
+
+---
+
+## 🙏 Acknowledgements
+
+- [Telegraf](https://telegraf.js.org/) - Telegram Bot Framework for TypeScript.
+- [Redis](https://redis.io/) - Database for session storage.
+- [Pusher](https://pusher.com/) - Real-time notifications.
+- [Copperx](https://copperx.io/) - API provider.
 
 ---
 
 ## 📜 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [Copperx](https://copperx.io/) for providing the API and support.
-- [Telegraf](https://telegraf.js.org/) for the Telegram bot framework.
-- [Pusher](https://pusher.com/) for real-time notifications.
-- [OpenAI](https://openai.com/) for AI-powered responses.
