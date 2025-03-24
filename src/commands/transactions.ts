@@ -1,16 +1,11 @@
 import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
-import {
-  createPaginationKeyboard,
-  fetchTransfers,
-  formatTransfersMessage,
-} from "../libs/funds";
 import { getUserData } from "../libs/redis";
-import { transferCallback } from "../handlers/callbackHandler";
+import { createPaginationKeyboard, fetchTransfers, formatTransfersMessage } from "../libs/funds";
 
-export const transferCommand = async (bot: Telegraf<MyContext>) => {
+export const transactionCommand = async (bot: Telegraf<MyContext>) => {
   // Command handler for /transfers
-  bot.command("transfers", async (ctx) => {
+  bot.command("transactions", async (ctx) => {
     // Define userPageState to track the current page for each user
     const userPageState: Record<string, number> = {};
 
@@ -177,16 +172,4 @@ export const transferCommand = async (bot: Telegraf<MyContext>) => {
       }
     });
   });
-
-  // Command handler for /transfer
-  bot.command("transfer", async (ctx) => {
-    const userId = ctx.from.id.toString();
-    const token = await getUserData(userId);
-
-    if (!token) {
-      return ctx.reply("Please log in first using /login.");
-    }
-
-    await transferCallback(bot, ctx, token);
-  });
-};
+}

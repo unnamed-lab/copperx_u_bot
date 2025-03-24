@@ -1,18 +1,16 @@
 import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import {
-    Country,
-    createPayee,
-  CreatePayeeDto,
+  createPayee,
   deletePayee,
   getAllPayee,
   getPayee,
   updatePayee,
-  UpdatePayeeDto,
   validCountries,
 } from "../libs/funds";
 import { getUserData } from "../libs/redis";
 import { escapeMarkdownV2, validateEmail } from "../libs/utils";
+import { Country, CreatePayeeDto, UpdatePayeeDto } from "../types/transactions";
 
 export const beneficiaryCommand = async (bot: Telegraf<MyContext>) => {
   // Define the beneficiary command
@@ -479,118 +477,125 @@ export const beneficiaryCommand = async (bot: Telegraf<MyContext>) => {
   });
 
   // Handle the /updateBeneficiary command to update an existing beneficiary
- bot.command("updateBeneficiary", async (ctx) => {
-   const userId = ctx.from.id.toString();
-   const token = await getUserData(userId);
+  bot.command("updateBeneficiary", async (ctx) => {
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
 
-   const updateBeneficiaryState: Partial<UpdatePayeeDto> = {};
+    const updateBeneficiaryState: Partial<UpdatePayeeDto> = {};
 
-   if (!token) {
-     return ctx.reply("Please log in first using /login.");
-   }
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
 
-   const [id] = ctx.message.text.split(" ").slice(1);
-   if (!id) {
-     return ctx.reply("Usage: /updateBeneficiary <id>");
-   }
+    const [id] = ctx.message.text.split(" ").slice(1);
+    if (!id) {
+      return ctx.reply("Usage: /updateBeneficiary <id>");
+    }
 
-   // Start the process by asking for the nickname
-   await ctx.reply(
-     "Let's update the beneficiary! 🎉\n\nPlease provide the new nickname:",
-     Markup.inlineKeyboard([
-       Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-     ])
-   );
+    // Start the process by asking for the nickname
+    await ctx.reply(
+      "Let's update the beneficiary! 🎉\n\nPlease provide the new nickname:",
+      Markup.inlineKeyboard([
+        Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
+      ])
+    );
 
-   bot.on("text", async (ctx) => {
-     const text = ctx.message.text;
+    bot.on("text", async (ctx) => {
+      const text = ctx.message.text;
 
-     if (!updateBeneficiaryState.nickName) {
-       updateBeneficiaryState.nickName = text;
-       await ctx.reply(
-         "Great! Now, please provide the new first name:",
-         Markup.inlineKeyboard([
-           Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-         ])
-       );
-       return;
-     }
+      if (!updateBeneficiaryState.nickName) {
+        updateBeneficiaryState.nickName = text;
+        await ctx.reply(
+          "Great! Now, please provide the new first name:",
+          Markup.inlineKeyboard([
+            Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
+          ])
+        );
+        return;
+      }
 
-     if (!updateBeneficiaryState.firstName) {
-       updateBeneficiaryState.firstName = text;
-       await ctx.reply(
-         "Got it! Now, please provide the new last name:",
-         Markup.inlineKeyboard([
-           Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-         ])
-       );
-       return;
-     }
+      if (!updateBeneficiaryState.firstName) {
+        updateBeneficiaryState.firstName = text;
+        await ctx.reply(
+          "Got it! Now, please provide the new last name:",
+          Markup.inlineKeyboard([
+            Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
+          ])
+        );
+        return;
+      }
 
-     if (!updateBeneficiaryState.lastName) {
-       updateBeneficiaryState.lastName = text;
-       await ctx.reply(
-         "Awesome! Now, please provide the new phone number:",
-         Markup.inlineKeyboard([
-           Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
-         ])
-       );
-       return;
-     }
+      if (!updateBeneficiaryState.lastName) {
+        updateBeneficiaryState.lastName = text;
+        await ctx.reply(
+          "Awesome! Now, please provide the new phone number:",
+          Markup.inlineKeyboard([
+            Markup.button.callback("❌ Cancel", "cancel_update_beneficiary"),
+          ])
+        );
+        return;
+      }
 
-     if (!updateBeneficiaryState.phoneNumber) {
-       updateBeneficiaryState.phoneNumber = text
-         .replace("+", "")
-         .replace(" ", "");
+      if (!updateBeneficiaryState.phoneNumber) {
+        updateBeneficiaryState.phoneNumber = text
+          .replace("+", "")
+          .replace(" ", "");
 
-       // Confirm all details
-       const payload = updateBeneficiaryState as UpdatePayeeDto;
+        // Confirm all details
+        const payload = updateBeneficiaryState as UpdatePayeeDto;
 
-       await ctx.reply(
-         `✅ Here are the details you provided:\n\n` +
-           `- Nickname: ${payload.nickName}\n` +
-           `- First Name: ${payload.firstName}\n` +
-           `- Last Name: ${payload.lastName}\n` +
-           `- Phone: ${payload.phoneNumber}\n\n` +
-           `Are you sure you want to update this beneficiary?`,
-         Markup.inlineKeyboard([
-           [Markup.button.callback("✅ Confirm", "confirm_update_beneficiary")],
-           [Markup.button.callback("❌ Cancel", "cancel_update_beneficiary")],
-         ])
-       );
-       return;
-     }
-   });
+        await ctx.reply(
+          `✅ Here are the details you provided:\n\n` +
+            `- Nickname: ${payload.nickName}\n` +
+            `- First Name: ${payload.firstName}\n` +
+            `- Last Name: ${payload.lastName}\n` +
+            `- Phone: ${payload.phoneNumber}\n\n` +
+            `Are you sure you want to update this beneficiary?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✅ Confirm",
+                "confirm_update_beneficiary"
+              ),
+            ],
+            [Markup.button.callback("❌ Cancel", "cancel_update_beneficiary")],
+          ])
+        );
+        return;
+      }
+    });
 
-   // Handle confirmation
-   bot.action("confirm_update_beneficiary", async (ctx) => {
-     const userId = ctx.from.id.toString();
+    // Handle confirmation
+    bot.action("confirm_update_beneficiary", async (ctx) => {
+      const userId = ctx.from.id.toString();
 
-     const token = await getUserData(userId);
+      const token = await getUserData(userId);
 
-     if (!token) {
-       return ctx.reply("Please log in first using /login.");
-     }
+      if (!token) {
+        return ctx.reply("Please log in first using /login.");
+      }
 
-     try {
-       const payee = await updatePayee(
-         token.accessToken,
-         id,
-         updateBeneficiaryState as UpdatePayeeDto
-       );
-       await ctx.reply(`✅ Beneficiary updated successfully!\nID: ${payee.id}`);
-     } catch (error) {
-       console.error("Error updating beneficiary:", error);
-       await ctx.reply("❌ Failed to update beneficiary. Please try again.");
-     }
-   });
+      try {
+        const payee = await updatePayee(
+          token.accessToken,
+          id,
+          updateBeneficiaryState as UpdatePayeeDto
+        );
+        await ctx.reply(
+          `✅ Beneficiary updated successfully!\nID: ${payee.id}`
+        );
+      } catch (error) {
+        console.error("Error updating beneficiary:", error);
+        await ctx.reply("❌ Failed to update beneficiary. Please try again.");
+      }
+    });
 
-   // Handle cancellation
-   bot.action("cancel_update_beneficiary", async (ctx) => {
-     const message = "Process canceled.";
-     await ctx.reply(message);
-   });
- });
+    // Handle cancellation
+    bot.action("cancel_update_beneficiary", async (ctx) => {
+      const message = "Process canceled.";
+      await ctx.reply(message);
+    });
+  });
 
   // Handle the /deleteBeneficiary command to delete a beneficiary
   bot.command("deleteBeneficiary", async (ctx) => {
