@@ -185,11 +185,11 @@ export const formatBalances = (balances: WalletBalances[]) => {
   balances
     .sort((a, b) => Number(a.network) - Number(b.network))
     .forEach((wallet) => {
-      const { network, balances: walletBalances } = wallet;
+      const { network, balances: walletBalances, isDefault } = wallet;
 
       formattedMessage += `🌐 Network: ${escapeMarkdownV2(
         chains.find((el) => el.id.toString() === network)?.name || network
-      )}\n`;
+      )} ${isDefault ? "(Default)" : ""}\n`;
 
       walletBalances.forEach((balance) => {
         const { symbol, balance: amount, decimals, address } = balance;
@@ -198,10 +198,10 @@ export const formatBalances = (balances: WalletBalances[]) => {
         ).toFixed(2);
         formattedMessage += `🔗 Address: ${address}\n💵 ${escapeMarkdownV2(
           symbol
-        )}: ${formattedAmount}\n`;
+        )}: ${formattedAmount}\n\n`;
       });
 
-      formattedMessage += "\n---\n\n";
+      formattedMessage += "\n";
     });
 
   return formattedMessage;

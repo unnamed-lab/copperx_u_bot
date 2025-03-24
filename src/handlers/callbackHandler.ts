@@ -5,6 +5,7 @@ import {
   escapeMarkdownV2,
   formatBalances,
   getWalletBalances,
+  getWalletDefault,
   getWalletDefaultBalance,
 } from "../libs/utils";
 import { MyContext } from "../types/context";
@@ -37,6 +38,7 @@ import {
   RecipientRelationship,
   SourceOfFunds,
 } from "../types/transactions";
+import QRCode from "qrcode";
 
 /**
  * Generates a help message for the Copperx Bot with a list of available commands.
@@ -56,15 +58,14 @@ const helpMessage = escapeMarkdownV2(
   "🛠️ *Copperx Bot Help* 🛠️\n\n" +
     "Here are the commands you can use:\n\n" +
     "🔐 *Authentication*\n" +
-    "`/login <email>` - Log in with your email.\n" +
-    "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
+    "`/login` - Log in with your email.\n\n" +
     "💼 *Wallet Management*\n" +
     "`/balance` - Check your wallet balances.\n" +
     "`/wallets` - View your wallet details.\n" +
     "`/wallet def <address>` - Set a default wallet.\n" +
     "`/receive` - Get your wallet address and QR code.\n\n" +
     "💸 *Transfers*\n" +
-    "`/send <email> <amount>` - Send funds to an email.\n" +
+    "`/send` - Send funds to an email.\n" +
     "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
     "`/withdraw` - Withdraw funds to your bank account.\n\n" +
     "📋 *Beneficiaries*\n" +
@@ -133,10 +134,14 @@ export const balanceCallback = async (
 export const transferWalletCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   // Set the transfer process flag to true
   ctx.session!.isTransferProcessActive = true;
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
 
   // Initialize the payload
   const transferPayload: Partial<CreateWalletWithdrawTransferDto> = {};
@@ -379,10 +384,14 @@ export const transferWalletCallback = async (
 export const transferEmailCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   // Set the transfer process flag to true
   ctx.session!.isTransferProcessActive = true;
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
 
   // Fetch payees
   try {
@@ -589,7 +598,7 @@ export const transferEmailCallback = async (
 export const transferOffRampCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   if (!token) {
     return ctx.reply("Please log in first using /login.");
@@ -837,7 +846,7 @@ export const transferOffRampCallback = async (
 export const transferCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   if (!token) {
     return ctx.reply("Please log in first using /login.");
@@ -1042,5 +1051,118 @@ export const depositCallback = async (
   bot.action("cancel_deposit", (ctx) => {
     ctx.reply("Deposit canceled.");
     depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
+  });
+};
+
+export const receiveCallback = async (
+  bot: Telegraf<MyContext>,
+  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>
+) => {
+  if (!ctx.from) return ctx.reply("Invalid user."); // Handle undefined 'from'
+  const userId = ctx.from.id.toString();
+  try {
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    const wallet = await getWalletDefault(token.accessToken);
+
+    if (!wallet) {
+      return ctx.reply("No default wallet found.");
+    }
+
+    const networkName =
+      chains.find((el) => el.id.toString() === wallet.network)?.name ||
+      "unknown";
+
+    const formattedBalances = `*Your Wallet*\n🌐 *Network*: ${networkName}\n🔗 *Address*: ${
+      wallet.walletAddress || "unknown"
+    }\n🪪 Wallet ID: ${wallet.id || "unknown"}`;
+
+    await ctx.reply(escapeMarkdownV2(formattedBalances), {
+      parse_mode: "MarkdownV2",
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            "Get QR Code",
+            `get_qr_${wallet.walletAddress}`
+          ),
+        ],
+      ]).reply_markup,
+    });
+  } catch (error) {
+    console.error("Error fetching wallet details:", error);
+    await ctx.reply("Failed to fetch wallet details. Please try again.");
+  }
+
+  // Handle QR code generation
+  bot.action(/get_qr_(.+)/, async (ctx) => {
+    const walletAddress = ctx.match[1]; // Extract wallet address from the callback data
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    try {
+      const wallet = await getWalletDefault(token.accessToken);
+
+      if (!wallet) {
+        return ctx.reply("No default wallet found.");
+      }
+
+      // Generate QR code for the wallet address
+      const qrCode = await QRCode.toBuffer(walletAddress, {
+        errorCorrectionLevel: "H",
+        type: "png",
+        width: 400,
+        margin: 2,
+      });
+
+      const networkName =
+        chains.find((el) => el.id.toString() === wallet.network)?.name ||
+        "unknown";
+
+      // Create caption with wallet address
+      const caption =
+        `📥 **Deposit Address**\n\n` +
+        `Network: ${networkName}\n` +
+        `Address: \`${walletAddress}\`\n\n` +
+        `Scan the QR code or copy the address above to send funds`;
+
+      // Send QR code and address to the user
+      await ctx.replyWithPhoto(
+        { source: qrCode },
+        {
+          caption: caption,
+          parse_mode: "MarkdownV2",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Copy Address",
+                  callback_data: `copy_address_${walletAddress}`,
+                },
+              ],
+            ],
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      await ctx.reply("Failed to generate QR code. Please try again.");
+    }
+  });
+
+  // Handle copy address button
+  bot.action(/copy_address_(.+)/, async (ctx) => {
+    const walletAddress = ctx.match[1];
+    await ctx.answerCbQuery();
+    await ctx.reply(`Here's your wallet address:\n\`${walletAddress}\``, {
+      parse_mode: "MarkdownV2",
+    });
   });
 };
