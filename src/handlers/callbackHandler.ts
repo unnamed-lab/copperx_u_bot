@@ -1,7 +1,7 @@
 import { CallbackQuery, Update } from "telegraf/typings/core/types/typegram";
 import { getUserData, UserRedis } from "../libs/redis";
 import {
-    chains,
+  chains,
   escapeMarkdownV2,
   formatBalances,
   getWalletBalances,
@@ -11,21 +11,12 @@ import { Context, Markup, Telegraf } from "telegraf";
 import {
   chunkCurrencies,
   chunkPurposeCodes,
-  Country,
-  CreateOfframpTransferDto,
-  CreateSendTransferDto,
-  CreateWalletWithdrawTransferDto,
   currencies,
-  Currency,
   depositFunds,
-  depositFundsPayload,
   formatAmount,
   getAllPayee,
   getPayee,
-  PurposeCode,
   purposeCodes,
-  RecipientRelationship,
-  SourceOfFunds,
   validCountries,
   validPurposeCodes,
   validRecipientRelationships,
@@ -34,6 +25,7 @@ import {
   withdrawFundsEmail,
   withdrawFundsWallet,
 } from "../libs/funds";
+import { Country, CreateOfframpTransferDto, CreateSendTransferDto, CreateWalletWithdrawTransferDto, Currency, depositFundsPayload, PurposeCode, RecipientRelationship, SourceOfFunds } from "../types/transactions";
 
 /**
  * Generates a help message for the Copperx Bot with a list of available commands.
@@ -854,124 +846,123 @@ export const transferCallback = async (
   });
 };
 
-
 export const depositCallback = async (
   bot: Telegraf<MyContext>,
-  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
+  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>
 ) => {
-    // Initialize the deposit state
-    let depositState: {
-      chainId: number;
-      amount: string;
-      sourceOfFunds: string;
-    } = {} as any;
+  // Initialize the deposit state
+  let depositState: {
+    chainId: number;
+    amount: string;
+    sourceOfFunds: string;
+  } = {} as any;
 
-    // Prompt the user to enter the deposit amount
-    await ctx.reply("Please enter the amount you want to deposit:");
+  // Prompt the user to enter the deposit amount
+  await ctx.reply("Please enter the amount you want to deposit:");
 
-    // Handle amount input and chain selection
-    bot.on("text", async (ctx) => {
-      const text = ctx.message.text;
+  // Handle amount input and chain selection
+  bot.on("text", async (ctx) => {
+    const text = ctx.message.text;
 
-      // Step 1: Handle amount input
-      if (!depositState.amount) {
-        const amount = text.trim();
+    // Step 1: Handle amount input
+    if (!depositState.amount) {
+      const amount = text.trim();
 
-        // Validate amount
-        if (isNaN(parseFloat(amount))) {
-          return ctx.reply("Invalid amount. Please enter a valid number.");
-        }
-
-        // Save the amount in the session
-        depositState.amount = amount;
-
-        // Prompt the user to select a chain
-        await ctx.reply(
-          "Select the chain:",
-          Markup.inlineKeyboard(
-            chains.map((chain) => [
-              Markup.button.callback(chain.name, `select_chain_${chain.id}`),
-            ])
-          )
-        );
+      // Validate amount
+      if (isNaN(parseFloat(amount))) {
+        return ctx.reply("Invalid amount. Please enter a valid number.");
       }
 
-      // Step 2: Handle source of funds input
-      else if (!depositState.sourceOfFunds) {
-        const sourceOfFunds = text.trim().toLowerCase();
+      // Save the amount in the session
+      depositState.amount = amount;
 
-        // Validate source of funds
-        if (!validSourceOfFunds.includes(sourceOfFunds as SourceOfFunds)) {
-          return ctx.reply(
-            `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
-              ", "
-            )}`
-          );
-        }
-
-        // Save the source of funds in the session
-        depositState.sourceOfFunds = sourceOfFunds;
-
-        // Confirm the deposit details
-        await ctx.reply(
-          `You are about to deposit ${depositState.amount} USD on ${
-            chains.find((chain) => chain.id === depositState.chainId)?.name
-          } (Chain ID: ${depositState.chainId}) with source of funds: ${
-            depositState.sourceOfFunds
-          }.\n\nAre you sure?`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback("Yes", "confirm_deposit")],
-            [Markup.button.callback("No", "cancel_deposit")],
-          ])
-        );
-      }
-    });
-
-    // Handle chain selection
-    bot.action(/select_chain_(.+)/, async (ctx) => {
-      const chainId = parseInt(ctx.match[1]); // Extract chain ID from the callback data
-
-      // Save the chain ID in the session
-      depositState.chainId = chainId;
-
-      // Prompt the user to enter the source of funds
+      // Prompt the user to select a chain
       await ctx.reply(
-        "Please enter the source of funds (e.g., savings, salary):"
+        "Select the chain:",
+        Markup.inlineKeyboard(
+          chains.map((chain) => [
+            Markup.button.callback(chain.name, `select_chain_${chain.id}`),
+          ])
+        )
       );
-    });
+    }
 
-    // Handle deposit confirmation
-    bot.action("confirm_deposit", async (ctx) => {
-      const userId = ctx.from.id.toString();
-      const token = await getUserData(userId);
+    // Step 2: Handle source of funds input
+    else if (!depositState.sourceOfFunds) {
+      const sourceOfFunds = text.trim().toLowerCase();
 
-      if (!token) {
-        return ctx.reply("Please log in first using /login.");
+      // Validate source of funds
+      if (!validSourceOfFunds.includes(sourceOfFunds as SourceOfFunds)) {
+        return ctx.reply(
+          `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
+            ", "
+          )}`
+        );
       }
 
-      try {
-        // Construct the payload
-        const payload = {
-          amount: formatAmount(depositState.amount),
-          sourceOfFunds: depositState.sourceOfFunds,
-          depositChainId: depositState.chainId,
-        };
+      // Save the source of funds in the session
+      depositState.sourceOfFunds = sourceOfFunds;
 
-        // Initiate the deposit
-        const deposit = await depositFunds(
-          token.accessToken,
-          payload as unknown as depositFundsPayload
-        );
+      // Confirm the deposit details
+      await ctx.reply(
+        `You are about to deposit ${depositState.amount} USD on ${
+          chains.find((chain) => chain.id === depositState.chainId)?.name
+        } (Chain ID: ${depositState.chainId}) with source of funds: ${
+          depositState.sourceOfFunds
+        }.\n\nAre you sure?`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("Yes", "confirm_deposit")],
+          [Markup.button.callback("No", "cancel_deposit")],
+        ])
+      );
+    }
+  });
 
-        // Format the deposit details
-        const depositDetails = `
+  // Handle chain selection
+  bot.action(/select_chain_(.+)/, async (ctx) => {
+    const chainId = parseInt(ctx.match[1]); // Extract chain ID from the callback data
+
+    // Save the chain ID in the session
+    depositState.chainId = chainId;
+
+    // Prompt the user to enter the source of funds
+    await ctx.reply(
+      "Please enter the source of funds (e.g., savings, salary):"
+    );
+  });
+
+  // Handle deposit confirmation
+  bot.action("confirm_deposit", async (ctx) => {
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    try {
+      // Construct the payload
+      const payload = {
+        amount: formatAmount(depositState.amount),
+        sourceOfFunds: depositState.sourceOfFunds,
+        depositChainId: depositState.chainId,
+      };
+
+      // Initiate the deposit
+      const deposit = await depositFunds(
+        token.accessToken,
+        payload as unknown as depositFundsPayload
+      );
+
+      // Format the deposit details
+      const depositDetails = `
             ✅ **Deposit Initiated Successfully!**
         
             **Deposit ID**: \`${deposit.id}\`
             **Status**: ${deposit.status}
             **Amount**: ${Number(deposit.amount) / 100_000_000} ${
-          deposit.currency
-        }
+        deposit.currency
+      }
             **Chain ID**: ${depositState.chainId}
         
             **Source Account**:
@@ -989,33 +980,33 @@ export const depositCallback = async (
             **Fees**: ${deposit.totalFee} ${deposit.feeCurrency}
           `;
 
-        // Send the deposit details
-        await ctx.replyWithMarkdownV2(depositDetails, {
-          link_preview_options: { is_disabled: true },
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "Open Deposit Link",
-                  url: deposit.transactions[0].depositUrl,
-                },
-              ],
+      // Send the deposit details
+      await ctx.replyWithMarkdownV2(depositDetails, {
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Open Deposit Link",
+                url: deposit.transactions[0].depositUrl,
+              },
             ],
-          },
-        });
+          ],
+        },
+      });
 
-        // Reset the deposit state
-        depositState = { chainId: 0, amount: "", sourceOfFunds: "" };
-      } catch (error) {
-        console.error("Deposit error:", error);
-        await ctx.reply("Failed to initiate deposit. Please try again.");
-        depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
-      }
-    });
-
-    // Handle deposit cancellation
-    bot.action("cancel_deposit", (ctx) => {
-      ctx.reply("Deposit canceled.");
+      // Reset the deposit state
+      depositState = { chainId: 0, amount: "", sourceOfFunds: "" };
+    } catch (error) {
+      console.error("Deposit error:", error);
+      await ctx.reply("Failed to initiate deposit. Please try again.");
       depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
-    });
-  }
+    }
+  });
+
+  // Handle deposit cancellation
+  bot.action("cancel_deposit", (ctx) => {
+    ctx.reply("Deposit canceled.");
+    depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
+  });
+};
