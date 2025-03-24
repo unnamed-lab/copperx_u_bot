@@ -1,27 +1,94 @@
-import { Telegraf } from "telegraf";
+import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import { AuthService } from "../services/authService";
 import { getUserData, setOTPData, UserRedis } from "../libs/redis";
+import { getWalletDefaultBalance } from "../libs/utils";
+import { getKycDetails } from "../libs/kyc";
+import {
+  balanceCallback,
+  depositCallback,
+  helpCallback,
+  transferCallback,
+  transferOffRampCallback,
+} from "../handlers/callbackHandler";
 
 export const authCommand = (bot: Telegraf<MyContext>) => {
+  const logResponse = async (ctx: MyContext, token: UserRedis) => {
+    const wallet = await getWalletDefaultBalance(token.accessToken);
+
+    if (!wallet) {
+      return ctx.reply("No default wallet found.");
+    }
+    const userDetails = `
+✅ Logged In!\n
+📧 Email: ${token.user.email}
+💵 Balance: ${wallet.balance} ${wallet.symbol}
+💳 Wallet Address: ${wallet.address}
+🏦 Wallet ID: ${token.user.walletId}
+✅ Status: ${token.user.status.toUpperCase()}
+    `;
+
+    const kycResponse = token
+      ? await getKycDetails(token.accessToken, token.user.id)
+      : null;
+
+    await ctx.reply(
+      userDetails,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.url(
+            "⚠️COMPLETE YOUR KYC",
+            "https://payout.copperx.io/app/kyc",
+            !!kycResponse
+          ),
+        ],
+        [
+          Markup.button.callback("💰 Deposit USC", "deposit"),
+          Markup.button.callback("💰 Withdraw USC", "transfer"),
+        ],
+        [Markup.button.callback("💳 Check Balance", "balance")],
+        [Markup.button.callback("🏦 Request Off-Ramp", "transfer_offramp")],
+        [Markup.button.callback("Help", "help")],
+      ])
+    );
+
+    // Define the help message with a list of available commands
+    bot.action("help", helpCallback);
+
+    // Handle the /balance command to fetch and display wallet balances
+    bot.action("balance", balanceCallback);
+
+    bot.action("deposit", async (ctx) => depositCallback(bot, ctx));
+
+    bot.action("transfer", async (ctx) => transferCallback(bot, ctx, token));
+
+    bot.action("transfer_offramp", async (ctx) =>
+      transferOffRampCallback(bot, ctx, token)
+    );
+  };
+
   bot.command("login", async (ctx) => {
+    let loginState: { email: string; sid: string } = {} as any;
+
+    const userId = ctx.from.id.toString(); // Get user ID
+    const userToken = await getUserData(userId); // Fetch user data
+
+    if (userToken) {
+      ctx.reply("User is already logged in."); // Prompt user
+      await logResponse(ctx, userToken);
+      return;
+    }
+
     // Prompt the user to enter their email
     await ctx.reply("Please enter your email address:");
 
-    // Set the login state to "awaiting email"
-    ctx.session ??= { isTransferProcessActive: false };
-    if (ctx.session) {
-      ctx.session.loginState = {};
-    }
-
     // Handle email input
-    return bot.on("text", async (ctx) => {
-      if (!ctx.session?.loginState) return; // Ignore if not in login state
-
+    bot.hears(/.*/, async (ctx) => {
       const text = ctx.message.text;
+      console.log({ text });
 
       // Step 1: Handle email input
-      if (!ctx.session.loginState.email) {
+      if (!loginState.email) {
         const email = text.trim();
 
         // Validate email (basic check)
@@ -32,7 +99,7 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         }
 
         // Save the email in the session
-        ctx.session.loginState.email = email;
+        loginState.email = email;
 
         try {
           // Request OTP
@@ -48,12 +115,11 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         } catch (error) {
           console.error("Error sending OTP:", error);
           await ctx.reply("Failed to send OTP. Please try again.");
-          delete ctx.session.loginState; // Reset the login state
         }
+        return;
       }
-
       // Step 2: Handle OTP input
-      else if (!ctx.session.loginState.sid) {
+      if (!loginState.sid) {
         const otp = text.trim();
 
         // Validate OTP (basic check)
@@ -74,25 +140,16 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         }
 
         try {
-          // Display user details on successful login
-          const userDetails = `
-                ✅ *Logged in successfully!*\n\n
-                📧 *Email*: ${token.user.email}\n
-                💳 *Wallet Address*: ${token.user.walletAddress}\n
-                🏦 *Wallet Type*: ${token.user.walletAccountType.toUpperCase()}\n
-                ✅ *Status*: ${token.user.status.toUpperCase()}
-              `;
+          await logResponse(ctx, token);
 
-          await ctx.reply(userDetails, { parse_mode: "MarkdownV2" });
-
-          // Reset the login state
-          delete ctx.session.loginState;
+          loginState = { email: "", sid: "" }; // Reset the login state
 
           return;
         } catch (error) {
           console.error("Error verifying OTP:", error);
           await ctx.reply("Invalid OTP. Please try again.");
-          delete ctx.session.loginState; // Reset the login state
+          loginState = { email: "", sid: "" }; // Reset the login state
+
           return;
         }
       }

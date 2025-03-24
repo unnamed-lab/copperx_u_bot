@@ -16,6 +16,7 @@ import { depositCommand } from "./commands/deposit";
 import { beneficiaryCommand } from "./commands/beneficiary";
 import { transferCommand } from "./commands/transfer";
 import { notifyCommand } from "./commands/notification";
+import { logoutCommand } from "./commands/logout";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -50,9 +51,11 @@ export const initBot = () => {
 
   beneficiaryCommand(bot); // /beneficiary, /addBeneficiary, /updateBeneficiary, /deleteBeneficiary
 
-    transferCommand(bot); // /transfer, /transfers
-    
-    notifyCommand(bot); // /notify
+  transferCommand(bot); // /transfer, /transfers
+
+  notifyCommand(bot); // /notify
+
+  logoutCommand(bot); // /logout
 
   // Error handler
   errorHandler(bot);

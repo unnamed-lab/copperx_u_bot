@@ -81,7 +81,9 @@ const getUserData = async (userId: string): Promise<UserRedis | null> => {
 };
 
 const deleteUserData = async (userId: string) => {
-  await redisClient.del(`user:${userId}`);
+  const status = await redisClient.del(`user:${userId}`).catch((err) => {
+    console.error("Error deleting user data:", err);
+  });
 };
 
 ////////////////////////////////////////

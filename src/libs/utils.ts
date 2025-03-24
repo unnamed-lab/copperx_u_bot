@@ -113,6 +113,13 @@ interface IGetWallet {
   isDefault: boolean;
 }
 
+interface DefaultWallet {
+  decimals: number;
+  balance: string;
+  symbol: string;
+  address: string;
+}
+
 export const getWallet = async (
   token: string
 ): Promise<IGetWallet[] | null> => {
@@ -135,6 +142,18 @@ export const getWalletDefault = async (
     }
   );
   return response.data as IGetWallet;
+};
+
+export const getWalletDefaultBalance = async (
+  token: string
+): Promise<DefaultWallet | null> => {
+  const response = await axios.get(
+    "https://income-api.copperx.io/api/wallets/balance",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data as DefaultWallet;
 };
 
 export const formatWallets = (wallets: IGetWallet[] | null) => {
@@ -205,3 +224,10 @@ export const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
+
+export const chains = [
+  { id: 137, name: "Polygon" },
+  { id: 42161, name: "Arbitrum" },
+  { id: 8453, name: "Base" },
+  { id: 23434, name: "Starknet" },
+];
