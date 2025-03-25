@@ -1,31 +1,46 @@
-
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><%= botName %> Info</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #2563eb; }
-        .command { background: #f3f4f6; padding: 8px; border-radius: 4px; margin: 5px 0; }
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f3f3f3;
+      }
+      h1 {
+        color: #2563eb;
+      }
+      .command {
+        background: #f3f4f6;
+        padding: 8px;
+        border-radius: 4px;
+        margin: 5px 0;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>🤖 <%= botName %></h1>
     <p><%= description %></p>
-    
+
     <h2>Available Commands</h2>
     <% commands.forEach(cmd => { %>
-        <div class="command">
-            <strong><%= cmd.command %></strong>: <%= cmd.description %>
-        </div>
+    <div class="command">
+      <strong><%= cmd.command %></strong>: <%= cmd.description %>
+    </div>
     <% }); %>
-    
+
     <h2>How to Use</h2>
-    <p>Search for @<%= botName %> in Telegram or <a href="https://t.me/<%= botName %>">click here</a> to start chatting.</p>
-    
+    <p>
+      Search for @<%= botName %> in Telegram or
+      <a href="https://t.me/<%= botName %>">click here</a> to start chatting.
+    </p>
+
     <h2>Source Code</h2>
     <p><a href="<%= repoUrl %>">GitHub Repository</a></p>
-</body>
+  </body>
 </html>
