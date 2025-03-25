@@ -34,6 +34,7 @@ import {
   CreateWalletWithdrawTransferDto,
   Currency,
   depositFundsPayload,
+  OfframpQuoteRequestDto,
   PurposeCode,
   RecipientRelationship,
   SourceOfFunds,
@@ -605,242 +606,383 @@ export const transferOffRampCallback = async (
     return ctx.reply("Please log in first using /login.");
   }
 
-  // Initialize the payload object
-  const payload: Partial<CreateOfframpTransferDto> = {
-    customerData: {} as any, // Initialize customerData as an empty object
+  // Initialize payload objects
+  const quoteRequest: Partial<OfframpQuoteRequestDto> = {
+    currency: "USDC",
+    onlyRemittance: false,
+  };
+  const transferPayload: Partial<CreateOfframpTransferDto> = {
+    customerData: {} as any,
   };
 
-  // Step 1: Ask for invoiceNumber
-  await ctx.reply("Please provide the invoice number:");
+  // Track conversation state
+  let currentStep = 0;
+  const commonSteps = [
+    {
+      question: "Please provide the amount to transfer (minimum 1 USDC):",
+      field: "amount",
+      validate: (text: string) => {
+        const amount = parseFloat(text);
+        return !isNaN(amount) && amount >= 1;
+      },
+      set: (text: string) => {
+        const amount = Math.floor(parseFloat(text) * 1000000); // Convert to smallest unit
+        quoteRequest.amount = amount.toString();
+      },
+    },
+    {
+      question: "Please provide the source country code (e.g., USA):",
+      field: "sourceCountry",
+      validate: validateCountry,
+      set: (text: string) => {
+        quoteRequest.sourceCountry = text.toLowerCase() as Country;
+      },
+    },
+    {
+      question: "Please provide the destination country code (e.g., NGA):",
+      field: "destinationCountry",
+      validate: validateCountry,
+      set: (text: string) => {
+        quoteRequest.destinationCountry = text.toLowerCase() as Country;
+      },
+    },
+    {
+      question: "Is this a remittance only transfer? (yes/no, default: no)",
+      field: "onlyRemittance",
+      parse: parseYesNo,
+      set: (text: string) => {
+        const value = parseYesNo(text);
+        quoteRequest.onlyRemittance = value;
+        transferPayload.onlyRemittance = value;
+      },
+    },
+    {
+      question: "Please provide preferred bank account ID (if any):",
+      field: "preferredBankAccountId",
+      optional: true,
+      set: (text: string) => {
+        quoteRequest.preferredBankAccountId = text;
+      },
+    },
+  ];
 
-  // Listen for the user's response
+  const largeTransferSteps = [
+    {
+      question: "Please provide the invoice number:",
+      field: "invoiceNumber",
+      set: (text: string) => (transferPayload.invoiceNumber = text),
+    },
+    {
+      question: "Please provide the invoice URL:",
+      field: "invoiceUrl",
+      validate: validateUrl,
+      set: (text: string) => (transferPayload.invoiceUrl = text),
+    },
+    {
+      question: `Please provide the purpose code:\n(${validPurposeCodes.join(
+        ", "
+      )})`,
+      field: "purposeCode",
+      validate: (text: string) => validateEnum(text, validPurposeCodes),
+      set: (text: string) =>
+        (transferPayload.purposeCode = text as PurposeCode),
+    },
+    {
+      question: `Please provide the source of funds:\n(${validSourceOfFunds.join(
+        ", "
+      )})`,
+      field: "sourceOfFunds",
+      validate: (text: string) => validateEnum(text, validSourceOfFunds),
+      set: (text: string) =>
+        (transferPayload.sourceOfFunds = text as SourceOfFunds),
+    },
+    {
+      question: `Please provide the recipient relationship:\n(${validRecipientRelationships.join(
+        ", "
+      )})`,
+      field: "recipientRelationship",
+      validate: (text: string) =>
+        validateEnum(text, validRecipientRelationships),
+      set: (text: string) =>
+        (transferPayload.recipientRelationship = text as RecipientRelationship),
+    },
+    {
+      question: "Please provide the customer's full name:",
+      field: "customerData.name",
+      set: (text: string) => {
+        transferPayload.customerData = transferPayload.customerData || {};
+        transferPayload.customerData.name = text;
+      },
+    },
+    {
+      question: "Please provide the customer's business name (if any):",
+      field: "customerData.businessName",
+      optional: true,
+      set: (text: string) => {
+        transferPayload.customerData = transferPayload.customerData || {};
+        transferPayload.customerData.businessName = text;
+      },
+    },
+    {
+      question: "Please provide the customer's email:",
+      field: "customerData.email",
+      validate: validateEmail,
+      set: (text: string) => {
+        transferPayload.customerData = transferPayload.customerData || {};
+        transferPayload.customerData.email = text.toLowerCase();
+      },
+    },
+    {
+      question: "Please provide the customer's country code:",
+      field: "customerData.country",
+      validate: validateCountry,
+      set: (text: string) => {
+        transferPayload.customerData = transferPayload.customerData || {};
+        transferPayload.customerData.country = text.toLowerCase() as Country;
+      },
+    },
+    {
+      question: "Please upload source of funds document (provide description):",
+      field: "sourceOfFundsFile",
+      set: (text: string) => (transferPayload.sourceOfFundsFile = text),
+    },
+    {
+      question: "Please add any additional notes:",
+      field: "note",
+      optional: true,
+      set: (text: string) => (transferPayload.note = text),
+    },
+  ];
+
+  // Helper function to generate quote
+  const generateQuote = async (): Promise<{
+    quotePayload: string;
+    quoteSignature: string;
+  }> => {
+    try {
+      const response = await axios.post(
+        "/api/transfers/offramp/quote",
+        quoteRequest,
+        {
+          headers: {
+            Authorization: `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      return {
+        quotePayload: JSON.stringify(response.data.quote),
+        quoteSignature: response.data.signature,
+      };
+    } catch (error) {
+      console.error("Quote generation failed:", error);
+      throw new Error(
+        error.response?.data?.message ||
+          "Failed to generate transfer quote. Please try again."
+      );
+    }
+  };
+
+  // Helper function to ask next question
+  const askNextQuestion = async (ctx: MyContext) => {
+    const allSteps = [...commonSteps];
+    const amount = parseFloat(quoteRequest.amount || "0") / 1000000;
+
+    if (amount >= 120) {
+      allSteps.push(...largeTransferSteps);
+    }
+
+    if (currentStep < allSteps.length) {
+      const step = allSteps[currentStep];
+      await ctx.reply(step.question);
+    } else {
+      // Generate quote before final confirmation
+      try {
+        const loadingMsg = await ctx.reply("⏳ Generating transfer quote...");
+        const { quotePayload, quoteSignature } = await generateQuote();
+        transferPayload.quotePayload = quotePayload;
+        transferPayload.quoteSignature = quoteSignature;
+
+        await ctx.deleteMessage(loadingMsg.message_id);
+        await confirmTransfer(ctx);
+      } catch (error) {
+        await ctx.reply(`❌ ${error.message}`);
+        currentStep = 0;
+        await askNextQuestion(ctx);
+      }
+    }
+  };
+
+  // Confirm before submitting
+  const confirmTransfer = async (ctx: MyContext) => {
+    const amount = parseFloat(quoteRequest.amount || "0") / 1000000;
+    const source = quoteRequest.sourceCountry?.toUpperCase();
+    const destination = quoteRequest.destinationCountry?.toUpperCase();
+
+    let confirmationText =
+      `📋 *Transfer Confirmation*\n\n` +
+      `*Amount:* ${amount} USDC\n` +
+      `*From:* ${source} → *To:* ${destination}\n` +
+      `*Type:* ${quoteRequest.onlyRemittance ? "Remittance" : "Standard"}\n`;
+
+    if (amount >= 120) {
+      confirmationText +=
+        `\n*Compliance Details:*\n` +
+        `• Purpose: ${transferPayload.purposeCode}\n` +
+        `• Funds Source: ${transferPayload.sourceOfFunds}\n` +
+        `• Recipient: ${transferPayload.recipientRelationship}\n` +
+        `• Invoice: ${transferPayload.invoiceNumber}\n`;
+    }
+
+    confirmationText += `\nPlease confirm all details are correct.`;
+
+    await ctx.replyWithMarkdown(
+      confirmationText,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Confirm Transfer", "confirm_withdraw")],
+        [Markup.button.callback("🔄 Edit Details", "edit_transfer")],
+        [Markup.button.callback("❌ Cancel", "cancel_withdraw")],
+      ])
+    );
+  };
+
+  // Start the conversation
+  await askNextQuestion(ctx);
+
+  // Handle user responses
   bot.on("text", async (ctx) => {
-    const text = ctx.message.text;
+    const text = ctx.message.text.trim();
+    const allSteps = [...commonSteps];
+    const amount = parseFloat(quoteRequest.amount || "0") / 1000000;
 
-    // Step 1: Collect invoiceNumber
-    if (!payload.invoiceNumber) {
-      payload.invoiceNumber = text;
-      await ctx.reply("Please provide the invoice URL:");
-      return;
+    if (amount >= 120) {
+      allSteps.push(...largeTransferSteps);
     }
 
-    // Step 2: Collect invoiceUrl
-    if (!payload.invoiceUrl) {
-      payload.invoiceUrl = text;
-      await ctx.reply(
-        "Please provide the purpose code (e.g., self, salary, gift):"
-      );
-      return;
+    if (currentStep >= allSteps.length) {
+      return ctx.reply("Please confirm or edit the transfer details.");
     }
 
-    // Step 3: Collect purposeCode
-    if (!payload.purposeCode) {
-      if (!validPurposeCodes.includes(text as PurposeCode)) {
-        return ctx.reply(
-          `Invalid purpose code. Supported values: ${validPurposeCodes.join(
-            ", "
-          )}`
-        );
+    const step = allSteps[currentStep];
+
+    // Handle optional fields
+    if (step.optional && (text === "" || text.toLowerCase() === "skip")) {
+      currentStep++;
+      return askNextQuestion(ctx);
+    }
+
+    // Handle validation
+    if (step.validate && !step.validate(text)) {
+      let errorMsg = `Invalid ${step.field}.`;
+      if (step.field === "amount") errorMsg = "Minimum transfer is 1 USDC";
+      if (step.field === "email") errorMsg = "Please enter a valid email";
+      if (step.field === "invoiceUrl") errorMsg = "Please enter a valid URL";
+
+      return ctx.reply(`${errorMsg}\n\n${step.question}`);
+    }
+
+    // Set the value using the step's set function
+    if (step.set) {
+      step.set(text);
+    } else if (step.parse) {
+      const value = step.parse(text);
+      quoteRequest[step.field as keyof OfframpQuoteRequestDto] = value;
+      transferPayload[step.field as keyof CreateOfframpTransferDto] = value;
+    } else {
+      quoteRequest[step.field as keyof OfframpQuoteRequestDto] = text as any;
+      transferPayload[step.field as keyof CreateOfframpTransferDto] =
+        text as any;
+    }
+
+    currentStep++;
+    await askNextQuestion(ctx);
+  });
+
+  // Handle transfer confirmation
+  bot.action("confirm_withdraw", async (ctx) => {
+    try {
+      const loadingMsg = await ctx.reply("🚀 Processing your transfer...");
+
+      // For small transfers, set default compliance values
+      const amount = parseFloat(quoteRequest.amount || "0") / 1000000;
+      if (amount < 120) {
+        transferPayload.invoiceNumber = `SMALL-${Date.now()}`;
+        transferPayload.purposeCode = "self";
+        transferPayload.sourceOfFunds = "savings";
+        transferPayload.recipientRelationship = "self";
+        transferPayload.customerData = transferPayload.customerData || {};
+        transferPayload.customerData.name = token.user.email.split("@")[0];
+        transferPayload.customerData.email = token.user.email;
+        transferPayload.customerData.country = quoteRequest.sourceCountry;
       }
-      payload.purposeCode = text as PurposeCode;
-      await ctx.reply(
-        "Please provide the source of funds (e.g., salary, savings):"
-      );
-      return;
-    }
 
-    // Step 4: Collect sourceOfFunds
-    if (!payload.sourceOfFunds) {
-      if (!validSourceOfFunds.includes(text as SourceOfFunds)) {
-        return ctx.reply(
-          `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
-            ", "
-          )}`
-        );
+      const transfer = await axios.post(
+        "/api/transfers/offramp",
+        transferPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      await ctx.deleteMessage(loadingMsg.message_id);
+
+      const transferDetails = `
+💸 *Transfer Successful!*
+
+*ID:* \`${transfer.data.id}\`
+*Amount:* ${amount} USDC
+*Status:* ${transfer.data.status}
+*Fee:* ${transfer.data.feeAmount} ${transfer.data.feeCurrency}
+
+💰 *Recipient Will Receive:* 
+${transfer.data.destinationAmount} ${transfer.data.destinationCurrency}
+
+⏱️ *Estimated Arrival:* 
+${transfer.data.estimatedArrival || "1-3 business days"}
+
+📋 *Tracking:* 
+${transfer.data.trackingUrl || "Available in your dashboard"}
+            `;
+
+      await ctx.replyWithMarkdown(transferDetails, {
+        reply_markup: transfer.data.trackingUrl
+          ? {
+              inline_keyboard: [
+                [{ text: "Track Transfer", url: transfer.data.trackingUrl }],
+              ],
+            }
+          : undefined,
+      });
+    } catch (error) {
+      console.error("Transfer failed:", error);
+
+      let errorMessage = "Transfer failed. Please try again later.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-      payload.sourceOfFunds = text as SourceOfFunds;
-      await ctx.reply(
-        "Please provide the recipient relationship (e.g., self, spouse):"
-      );
-      return;
-    }
 
-    // Step 5: Collect recipientRelationship
-    if (!payload.recipientRelationship) {
-      if (
-        !validRecipientRelationships.includes(text as RecipientRelationship)
-      ) {
-        return ctx.reply(
-          `Invalid recipient relationship. Supported values: ${validRecipientRelationships.join(
-            ", "
-          )}`
-        );
-      }
-      payload.recipientRelationship = text as RecipientRelationship;
-      await ctx.reply("Please provide the quote payload:");
-      return;
-    }
-
-    // Step 6: Collect quotePayload
-    if (!payload.quotePayload) {
-      payload.quotePayload = text;
-      await ctx.reply("Please provide the quote signature:");
-      return;
-    }
-
-    // Step 7: Collect quoteSignature
-    if (!payload.quoteSignature) {
-      payload.quoteSignature = text;
-      await ctx.reply("Please provide the preferred wallet ID:");
-      return;
-    }
-
-    // Step 8: Collect preferredWalletId
-    if (!payload.preferredWalletId) {
-      payload.preferredWalletId = text;
-      await ctx.reply("Please provide the customer's name:");
-      return;
-    }
-
-    // Step 9: Collect customer's name
-    if (!payload.customerData?.name) {
-      payload.customerData!.name = text;
-      await ctx.reply("Please provide the customer's business name (if any):");
-      return;
-    }
-
-    // Step 10: Collect customer's business name
-    if (!payload.customerData?.businessName) {
-      payload.customerData!.businessName = text;
-      await ctx.reply("Please provide the customer's email:");
-      return;
-    }
-
-    // Step 11: Collect customer's email
-    if (!payload.customerData?.email) {
-      payload.customerData!.email = text;
-      await ctx.reply(
-        "Please provide the customer's country (e.g., usa, ind):"
-      );
-      return;
-    }
-
-    // Step 12: Collect customer's country
-    if (!payload.customerData?.country) {
-      if (!validCountries.includes(text as Country)) {
-        return ctx.reply(
-          `Invalid country. Supported values: ${validCountries
-            .map((el) => el.toUpperCase())
-            .join(", ")}`
-        );
-      }
-      payload.customerData!.country = text as Country;
-      await ctx.reply("Please provide the source of funds file (if any):");
-      return;
-    }
-
-    // Step 13: Collect sourceOfFundsFile
-    if (!payload.sourceOfFundsFile) {
-      payload.sourceOfFundsFile = text;
-      await ctx.reply("Please provide a note (if any):");
-      return;
-    }
-
-    // Step 14: Collect note
-    if (!payload.note) {
-      payload.note = text;
-
-      // All details collected, ask for confirmation
-      await ctx.reply(
-        `Are you sure you want to initiate the off-ramp transfer with the following details?\n\n` +
-          `Invoice Number: ${payload.invoiceNumber}\n` +
-          `Invoice URL: ${payload.invoiceUrl}\n` +
-          `Purpose Code: ${payload.purposeCode}\n` +
-          `Source of Funds: ${payload.sourceOfFunds}\n` +
-          `Recipient Relationship: ${payload.recipientRelationship}\n` +
-          `Quote Payload: ${payload.quotePayload}\n` +
-          `Quote Signature: ${payload.quoteSignature}\n` +
-          `Preferred Wallet ID: ${payload.preferredWalletId}\n` +
-          `Customer Name: ${payload.customerData!.name}\n` +
-          `Customer Business Name: ${payload.customerData!.businessName}\n` +
-          `Customer Email: ${payload.customerData!.email}\n` +
-          `Customer Country: ${payload.customerData!.country}\n` +
-          `Source of Funds File: ${payload.sourceOfFundsFile}\n` +
-          `Note: ${payload.note}`,
-        Markup.inlineKeyboard([
-          [Markup.button.callback("Yes", "confirm_withdraw")],
-          [Markup.button.callback("No", "cancel_withdraw")],
-        ])
-      );
-      return;
+      await ctx.reply(`❌ *Transfer Failed*\n\n${errorMessage}`);
     }
   });
 
-  // Handle confirmation
-  bot.action("confirm_withdraw", async (ctx) => {
-    try {
-      // Format the response
-      const transfer = await withdrawFunds(
-        token.accessToken,
-        payload as CreateOfframpTransferDto
-      );
-      const transferDetails = `
-        ✅ **Off-Ramp Transfer Initiated Successfully\\!**
-
-        **Transfer ID**: \`${transfer.id}\`
-        **Status**: ${transfer.status}
-        **Amount**: ${Number(transfer.amount) / 100_000_000} ${
-        transfer.currency
-      }
-        **Source Country**: ${transfer.sourceCountry}
-        **Destination Country**: ${transfer.destinationCountry}
-        **Destination Currency**: ${transfer.destinationCurrency}
-
-        **Source Account**:
-        \\- **Type**: ${transfer.sourceAccount.type}
-        \\- **Wallet Address**: \`${transfer.sourceAccount.walletAddress}\`
-        \\- **Network**: ${transfer.sourceAccount.network}
-
-        **Destination Account**:
-        \\- **Type**: ${transfer.destinationAccount.type}
-        \\- **Wallet Address**: \`${transfer.destinationAccount.walletAddress}\`
-        \\- **Network**: ${transfer.destinationAccount.network}
-
-        **Fees**: ${transfer.totalFee} ${transfer.feeCurrency}
-      `;
-
-      // Send the transfer details
-      await ctx.replyWithMarkdownV2(transferDetails, {
-        link_preview_options: { is_disabled: true },
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: "Open Withdrawal Link",
-                url: transfer.paymentUrl,
-              },
-            ],
-          ],
-        },
-      });
-    } catch (error) {
-      console.error("Off-Ramp Transfer error:", error);
-
-      if (error instanceof Error && (error as any).response) {
-        ctx.reply(
-          `❌ Failed to initiate off-ramp transfer: ${
-            (error as any).response.data.message || "Unknown error"
-          }`
-        );
-      } else {
-        ctx.reply("❌ An error occurred. Please try again later.");
-      }
-    }
+  // Handle edit request
+  bot.action("edit_transfer", async (ctx) => {
+    await ctx.answerCbQuery();
+    currentStep = 0;
+    await askNextQuestion(ctx);
   });
 
   // Handle cancellation
-  bot.action("cancel_withdraw", (ctx) => {
-    ctx.reply("Off-ramp transfer canceled.");
+  bot.action("cancel_withdraw", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply("Transfer cancelled. No action was taken.");
+    currentStep = 0;
   });
 };
 
