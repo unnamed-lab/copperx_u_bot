@@ -10,6 +10,18 @@ export const AuthService = {
     return token;
   },
 
+  async logout(accessToken: string) {
+    const response = await axios.post(
+      "https://income-api.copperx.io/api/auth/logout",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
   async verifyOTP(userId: string, otp: string) {
     const meta = await getOTPData(userId);
     if (meta) {
@@ -20,8 +32,8 @@ export const AuthService = {
     }
 
     return null;
-    },
-  
+  },
+
   async getProfile(accessToken: string): Promise<AuthUserDto> {
     const response = await axios.get<AuthUserDto>(
       "https://income-api.copperx.io/api/auth/me",
