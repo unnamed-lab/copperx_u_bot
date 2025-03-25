@@ -62,7 +62,7 @@ const helpMessage = escapeMarkdownV2(
     "💼 *Wallet Management*\n" +
     "`/balance` - Check your wallet balances.\n" +
     "`/wallets` - View your wallet details.\n" +
-    "`/wallet def <address>` - Set a default wallet.\n" +
+    "`/wallet` - View and set a default wallet.\n" +
     "`/receive` - Get your wallet address and QR code.\n\n" +
     "💸 *Transfers*\n" +
     "`/send` - Send funds to an email.\n" +
