@@ -3,7 +3,14 @@ import { escapeMarkdownV2 } from "../libs/utils";
 import { MyContext } from "../types/context";
 import { getUserData } from "../libs/redis";
 import { getKycDetails } from "../libs/kyc";
-import { balanceCallback, helpCallback } from "../handlers/callbackHandler";
+import {
+  balanceCallback,
+  helpCallback,
+  receiveCallback,
+  transferCallback,
+  transferOffRampCallback,
+  transferWalletCallback,
+} from "../handlers/callbackHandler";
 
 export const startCommand = (bot: Telegraf<MyContext>) => {
   // Handle the /start command with a welcome message and image
@@ -35,27 +42,36 @@ export const startCommand = (bot: Telegraf<MyContext>) => {
             !!kycResponse
           ),
         ],
-        [Markup.button.callback("Check Balance", "balance")],
         [
-          Markup.button.callback("Transfer Funds", "send"),
-          Markup.button.callback("Withdraw Funds", "withdraw"),
+          Markup.button.callback("Check Balance", "balance"),
+          Markup.button.callback("Get Wallet", "recieve"),
         ],
+        [
+          Markup.button.callback("Transfer USDC", "send"),
+          Markup.button.callback("Withdraw USDC", "withdraw"),
+        ],
+        [Markup.button.callback("Request Off-Ramp", "request_offramp")],
+
         [Markup.button.callback("Help", "help")],
       ]).reply_markup,
     });
-  });
 
-  // Define the help message with a list of available commands
-  bot.action("help", helpCallback);
+    // Define the help message with a list of available commands
+    bot.action("help", helpCallback);
 
-  // Handle the /balance command to fetch and display wallet balances
-  bot.action("balance", balanceCallback);
+    // Handle the /balance command to fetch and display wallet balances
+    bot.action("balance", balanceCallback);
 
-  bot.action("send", (ctx) => {
-    ctx.reply("Please use the /transfer command to send funds.");
-  });
+    bot.action("send", async (ctx) => transferCallback(bot, ctx, token));
 
-  bot.action("withdraw", (ctx) => {
-    ctx.reply("Please use the /withdraw command to withdraw funds.");
+    bot.action("withdraw", async (ctx) =>
+      transferWalletCallback(bot, ctx, token)
+    );
+
+    bot.action("recieve", async (ctx) => receiveCallback(bot, ctx));
+
+    bot.action("request_offramp", async (ctx) =>
+      transferOffRampCallback(bot, ctx, token)
+    );
   });
 };

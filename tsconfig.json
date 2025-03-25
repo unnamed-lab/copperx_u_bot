@@ -1,22 +1,26 @@
 {
   "compilerOptions": {
-    "target": "ES6",
-    "outDir": "./dist",
+    "target": "ESNext",
+    "module": "ESNext",
     "rootDir": "./src",
+    "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "preserveConstEnums": true,
+    "sourceMap": true
   },
   "include": ["src/**/*", "src/**/*.d.ts"],
   "exclude": ["node_modules"],
   "ts-node": {
     "compilerOptions": {
       "module": "CommonJS"
-    }
+    },
+    "esm": true, 
+    "experimentalSpecifierResolution": "node" 
   }
 }

@@ -13,7 +13,9 @@ const startBot = async () => {
       .catch((err) => console.error("Bot failed to start:", err));
   } catch (error) {
     console.log("Error occurred!", error);
-    startBot();
+    setTimeout(() => {
+      startBot();
+    }, 15000); // Restart bot instance after 15 secs
   }
 };
 

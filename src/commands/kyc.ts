@@ -1,8 +1,9 @@
 import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
-import { formatKycDetails, getKycDetails, KycDto } from "../libs/kyc";
+import { formatKycDetails, getKycDetails } from "../libs/kyc";
 import { escapeMarkdownV2 } from "../libs/utils";
 import { getUserData } from "../libs/redis";
+import { KycDto } from "../types/kyc";
 
 export const kycCommand = async (bot: Telegraf<MyContext>) => {
   // Handle the /kyc command to check the user's KYC status

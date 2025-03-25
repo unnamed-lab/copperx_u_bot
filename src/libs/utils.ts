@@ -1,16 +1,6 @@
 import { client } from "./openai";
 import axios from "axios";
 
-export const getWalletBalances = async (token: string): Promise<any> => {
-  const response = await axios.get(
-    "https://income-api.copperx.io/api/wallets/balances",
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  );
-  return response.data;
-};
-
 export const sendFundsByEmail = async (
   token: string,
   email: string,
@@ -45,30 +35,6 @@ export const withdrawFunds = async (
     }
   );
   return response.data;
-};
-
-export const formatBalances = (balances: any[]) => {
-  let formattedMessage = "*Your Balances* 💰\n\n";
-
-  balances.forEach((wallet) => {
-    const { network, balances: walletBalances } = wallet;
-
-    formattedMessage += `🌐 *Network*: ${escapeMarkdownV2(network)}\n`;
-
-    walletBalances.forEach((balance: any) => {
-      const { symbol, balance: amount, decimals, address } = balance;
-      const formattedAmount = (
-        parseInt(amount) / Math.pow(10, decimals)
-      ).toFixed(2);
-      formattedMessage += `🔗 *Address*: ${address}\n💵 ${escapeMarkdownV2(
-        symbol
-      )}: ${escapeMarkdownV2(formattedAmount)}\n`;
-    });
-
-    formattedMessage += "\n";
-  });
-
-  return formattedMessage;
 };
 
 export const escapeMarkdownV2 = (text: string) => {
@@ -120,6 +86,13 @@ interface DefaultWallet {
   address: string;
 }
 
+interface WalletBalances {
+  walletId: string;
+  isDefault: boolean;
+  network: string;
+  balances: DefaultWallet[];
+}
+
 export const getWallet = async (
   token: string
 ): Promise<IGetWallet[] | null> => {
@@ -146,7 +119,7 @@ export const getWalletDefault = async (
 
 export const getWalletDefaultBalance = async (
   token: string
-): Promise<DefaultWallet | null> => {
+): Promise<DefaultWallet> => {
   const response = await axios.get(
     "https://income-api.copperx.io/api/wallets/balance",
     {
@@ -156,24 +129,16 @@ export const getWalletDefaultBalance = async (
   return response.data as DefaultWallet;
 };
 
-export const formatWallets = (wallets: IGetWallet[] | null) => {
-  if (!wallets) return "No wallet available.";
-
-  let formattedMessage = "*Your Wallets* 💼\n\n";
-
-  wallets.forEach((el) => {
-    const { network, walletAddress: address, isDefault, walletType, id } = el;
-
-    formattedMessage += `🌐 *Network*: ${network.toUpperCase()}\n🔗 *Address*: ${address}\n🤖 *Wallet Type*: ${walletType
-      .replace("_", " ")
-      .toUpperCase()}\n🔥*Default*: ${
-      isDefault ? "TRUE" : "FALSE"
-    }\n🪪 Wallet ID: ${id}\n`;
-
-    formattedMessage += "\n";
-  });
-
-  return formattedMessage;
+export const getWalletBalances = async (
+  token: string
+): Promise<WalletBalances[]> => {
+  const response = await axios.get(
+    "https://income-api.copperx.io/api/wallets/balances",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data as WalletBalances[];
 };
 
 export const setWalletDefault = async (
@@ -182,13 +147,89 @@ export const setWalletDefault = async (
 ): Promise<IGetWallet | null> => {
   const response = await axios.post(
     "https://income-api.copperx.io/api/wallets/default",
+    { walletId },
     {
-      walletId,
       headers: { Authorization: `Bearer ${token}` },
     }
   );
   return response.data as IGetWallet;
 };
+
+export const formatWallets = (wallets: IGetWallet[] | null) => {
+  if (!wallets) return "No wallet available.";
+
+  let formattedMessage = "Your Wallets 💼\n\n";
+
+  wallets
+    .sort((a, b) => Number(a.network) - Number(b.network))
+    .forEach((el) => {
+      const { network, walletAddress: address, isDefault, walletType, id } = el;
+
+      formattedMessage += `🌐 Network: ${
+        chains.find((el) => el.id.toString() === network)?.name
+      } ${
+        isDefault ? "(Default)" : ""
+      }\n🔗 Address: ${address}\n🪪 Wallet ID: ${id}\n`;
+
+      formattedMessage += "\n";
+    });
+
+  return formattedMessage;
+};
+
+export const formatBalances = (balances: WalletBalances[]) => {
+  if (!balances) return "No wallet available.";
+
+  let formattedMessage = "💰 Your Balances \n\n";
+
+  balances
+    .sort((a, b) => Number(a.network) - Number(b.network))
+    .forEach((wallet) => {
+      const { network, balances: walletBalances, isDefault } = wallet;
+
+      formattedMessage += `🌐 Network: ${escapeMarkdownV2(
+        chains.find((el) => el.id.toString() === network)?.name || network
+      )} ${isDefault ? "(Default)" : ""}\n`;
+
+      walletBalances.forEach((balance) => {
+        const { symbol, balance: amount, decimals, address } = balance;
+        const formattedAmount = (
+          parseInt(amount) / Math.pow(10, decimals)
+        ).toFixed(2);
+        formattedMessage += `🔗 Address: ${address}\n💵 ${escapeMarkdownV2(
+          symbol
+        )}: ${formattedAmount}\n\n`;
+      });
+
+      formattedMessage += "\n";
+    });
+
+  return formattedMessage;
+};
+
+// export const formatBalances = (balances: any[]) => {
+//   let formattedMessage = "*Your Balances* 💰\n\n";
+
+//   balances.forEach((wallet) => {
+//     const { network, balances: walletBalances } = wallet;
+
+//     formattedMessage += `🌐 *Network*: ${escapeMarkdownV2(network)}\n`;
+
+//     walletBalances.forEach((balance: any) => {
+//       const { symbol, balance: amount, decimals, address } = balance;
+//       const formattedAmount = (
+//         parseInt(amount) / Math.pow(10, decimals)
+//       ).toFixed(2);
+//       formattedMessage += `🔗 *Address*: ${address}\n💵 ${escapeMarkdownV2(
+//         symbol
+//       )}: ${escapeMarkdownV2(formattedAmount)}\n`;
+//     });
+
+//     formattedMessage += "\n";
+//   });
+
+//   return formattedMessage;
+// };
 
 //////////////////////////////////
 //////////////////////////////////
@@ -196,7 +237,7 @@ export const setWalletDefault = async (
 export const generateAIResponse = async (message: string) => {
   try {
     const response = await client.chat.completions.create({
-      model:  'caramelldansen-1',
+      model: "caramelldansen-1",
       messages: [
         {
           role: "system",

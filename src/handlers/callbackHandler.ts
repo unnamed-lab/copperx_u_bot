@@ -1,31 +1,24 @@
 import { CallbackQuery, Update } from "telegraf/typings/core/types/typegram";
 import { getUserData, UserRedis } from "../libs/redis";
 import {
-    chains,
+  chains,
   escapeMarkdownV2,
   formatBalances,
   getWalletBalances,
+  getWalletDefault,
+  getWalletDefaultBalance,
 } from "../libs/utils";
 import { MyContext } from "../types/context";
 import { Context, Markup, Telegraf } from "telegraf";
 import {
   chunkCurrencies,
   chunkPurposeCodes,
-  Country,
-  CreateOfframpTransferDto,
-  CreateSendTransferDto,
-  CreateWalletWithdrawTransferDto,
   currencies,
-  Currency,
   depositFunds,
-  depositFundsPayload,
   formatAmount,
   getAllPayee,
   getPayee,
-  PurposeCode,
   purposeCodes,
-  RecipientRelationship,
-  SourceOfFunds,
   validCountries,
   validPurposeCodes,
   validRecipientRelationships,
@@ -34,6 +27,18 @@ import {
   withdrawFundsEmail,
   withdrawFundsWallet,
 } from "../libs/funds";
+import {
+  Country,
+  CreateOfframpTransferDto,
+  CreateSendTransferDto,
+  CreateWalletWithdrawTransferDto,
+  Currency,
+  depositFundsPayload,
+  PurposeCode,
+  RecipientRelationship,
+  SourceOfFunds,
+} from "../types/transactions";
+import QRCode from "qrcode";
 
 /**
  * Generates a help message for the Copperx Bot with a list of available commands.
@@ -53,15 +58,14 @@ const helpMessage = escapeMarkdownV2(
   "🛠️ *Copperx Bot Help* 🛠️\n\n" +
     "Here are the commands you can use:\n\n" +
     "🔐 *Authentication*\n" +
-    "`/login <email>` - Log in with your email.\n" +
-    "`/verify <otp>` - Verify your OTP to complete login.\n\n" +
+    "`/login` - Log in with your email.\n\n" +
     "💼 *Wallet Management*\n" +
     "`/balance` - Check your wallet balances.\n" +
     "`/wallets` - View your wallet details.\n" +
-    "`/wallet def <address>` - Set a default wallet.\n" +
+    "`/wallet` - View and set a default wallet.\n" +
     "`/receive` - Get your wallet address and QR code.\n\n" +
     "💸 *Transfers*\n" +
-    "`/send <email> <amount>` - Send funds to an email.\n" +
+    "`/send` - Send funds to an email.\n" +
     "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
     "`/withdraw` - Withdraw funds to your bank account.\n\n" +
     "📋 *Beneficiaries*\n" +
@@ -114,8 +118,7 @@ export const balanceCallback = async (
       ctx.chat.id,
       loadingMessage.message_id,
       undefined,
-      formattedBalances,
-      { parse_mode: "MarkdownV2" } // Use MarkdownV2 for formatting
+      formattedBalances
     );
   } catch (error) {
     // Handle errors
@@ -131,10 +134,14 @@ export const balanceCallback = async (
 export const transferWalletCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   // Set the transfer process flag to true
   ctx.session!.isTransferProcessActive = true;
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
 
   // Initialize the payload
   const transferPayload: Partial<CreateWalletWithdrawTransferDto> = {};
@@ -202,11 +209,13 @@ export const transferWalletCallback = async (
       await ctx.reply(
         "Please select the currency:",
         Markup.inlineKeyboard([
-          ...chunkCurrencies(currencies, 3).map((chunk) =>
-            chunk.map((currency) =>
-              Markup.button.callback(currency, `currency_${currency}`)
-            )
-          ),
+          // Uncomment and use if other currencies are available
+          //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+          //     chunk.map((currency) =>
+          //       Markup.button.callback(currency, `currency_${currency}`)
+          //     )
+          //   ),
+          [Markup.button.callback("USDC", `currency_USDC`)],
           [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
           [Markup.button.callback("❌ Cancel", "cancel_transfer")],
         ])
@@ -224,11 +233,13 @@ export const transferWalletCallback = async (
     await ctx.reply(
       "Please select the currency:",
       Markup.inlineKeyboard([
-        ...chunkCurrencies(currencies, 3).map((chunk) =>
-          chunk.map((currency) =>
-            Markup.button.callback(currency, `currency_${currency}`)
-          )
-        ),
+        // Uncomment and use if other currencies are available
+        //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+        //     chunk.map((currency) =>
+        //       Markup.button.callback(currency, `currency_${currency}`)
+        //     )
+        //   ),
+        [Markup.button.callback("USDC", `currency_USDC`)],
         [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
         [Markup.button.callback("❌ Cancel", "cancel_transfer")],
       ])
@@ -256,6 +267,12 @@ export const transferWalletCallback = async (
   // Handle transfer confirmation
   bot.action("confirm_wallet_transfer", async (ctx) => {
     console.log("Payload", transferPayload);
+
+    const balance = await getWalletDefaultBalance(token.accessToken);
+    if (parseFloat(balance.balance) < parseFloat(transferPayload.amount!)) {
+      return ctx.reply("❌ Insufficient balance. Please try again.");
+    }
+
     try {
       const transfer = await withdrawFundsWallet(
         token.accessToken,
@@ -350,11 +367,13 @@ export const transferWalletCallback = async (
     await ctx.reply(
       "Please select the currency:",
       Markup.inlineKeyboard([
-        ...chunkCurrencies(currencies, 3).map((chunk) =>
-          chunk.map((currency) =>
-            Markup.button.callback(currency, `currency_${currency}`)
-          )
-        ),
+        // Uncomment and use if other currencies are available
+        //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+        //     chunk.map((currency) =>
+        //       Markup.button.callback(currency, `currency_${currency}`)
+        //     )
+        //   ),
+        [Markup.button.callback("USDC", `currency_USDC`)],
         [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
         [Markup.button.callback("❌ Cancel", "cancel_transfer")],
       ])
@@ -365,10 +384,14 @@ export const transferWalletCallback = async (
 export const transferEmailCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   // Set the transfer process flag to true
   ctx.session!.isTransferProcessActive = true;
+
+  if (!token) {
+    return ctx.reply("Please log in first using /login.");
+  }
 
   // Fetch payees
   try {
@@ -471,11 +494,13 @@ export const transferEmailCallback = async (
           await ctx.reply(
             "Please select the currency:",
             Markup.inlineKeyboard([
-              ...chunkCurrencies(currencies, 3).map((chunk) =>
-                chunk.map((currency) =>
-                  Markup.button.callback(currency, `currency_${currency}`)
-                )
-              ),
+              // Uncomment and use if other currencies are available
+              //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+              //     chunk.map((currency) =>
+              //       Markup.button.callback(currency, `currency_${currency}`)
+              //     )
+              //   ),
+              [Markup.button.callback("USDC", `currency_USDC`)],
               [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
               [Markup.button.callback("❌ Cancel", "cancel_transfer")],
             ])
@@ -493,11 +518,13 @@ export const transferEmailCallback = async (
         await ctx.reply(
           "Please select the currency:",
           Markup.inlineKeyboard([
-            ...chunkCurrencies(currencies, 3).map((chunk) =>
-              chunk.map((currency) =>
-                Markup.button.callback(currency, `currency_${currency}`)
-              )
-            ),
+            // Uncomment and use if other currencies are available
+            //   ...chunkCurrencies(currencies, 3).map((chunk) =>
+            //     chunk.map((currency) =>
+            //       Markup.button.callback(currency, `currency_${currency}`)
+            //     )
+            //   ),
+            [Markup.button.callback("USDC", `currency_USDC`)],
             [Markup.button.callback("⬅️ Back", "back_to_purpose_code")],
             [Markup.button.callback("❌ Cancel", "cancel_transfer")],
           ])
@@ -526,6 +553,14 @@ export const transferEmailCallback = async (
       bot.action("confirm_email_transfer", async (ctx) => {
         try {
           console.log("Payload", transferPayload);
+
+          const balance = await getWalletDefaultBalance(token.accessToken);
+          if (
+            parseFloat(balance.balance) < parseFloat(transferPayload.amount!)
+          ) {
+            return ctx.reply("❌ Insufficient balance. Please try again.");
+          }
+
           const transfer = await withdrawFundsEmail(
             token.accessToken,
             transferPayload as CreateSendTransferDto
@@ -563,7 +598,7 @@ export const transferEmailCallback = async (
 export const transferOffRampCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   if (!token) {
     return ctx.reply("Please log in first using /login.");
@@ -811,7 +846,7 @@ export const transferOffRampCallback = async (
 export const transferCallback = async (
   bot: Telegraf<MyContext>,
   ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
-  token: UserRedis
+  token: UserRedis | null
 ) => {
   if (!token) {
     return ctx.reply("Please log in first using /login.");
@@ -854,124 +889,123 @@ export const transferCallback = async (
   });
 };
 
-
 export const depositCallback = async (
   bot: Telegraf<MyContext>,
-  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>,
+  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>
 ) => {
-    // Initialize the deposit state
-    let depositState: {
-      chainId: number;
-      amount: string;
-      sourceOfFunds: string;
-    } = {} as any;
+  // Initialize the deposit state
+  let depositState: {
+    chainId: number;
+    amount: string;
+    sourceOfFunds: string;
+  } = {} as any;
 
-    // Prompt the user to enter the deposit amount
-    await ctx.reply("Please enter the amount you want to deposit:");
+  // Prompt the user to enter the deposit amount
+  await ctx.reply("Please enter the amount you want to deposit:");
 
-    // Handle amount input and chain selection
-    bot.on("text", async (ctx) => {
-      const text = ctx.message.text;
+  // Handle amount input and chain selection
+  bot.on("text", async (ctx) => {
+    const text = ctx.message.text;
 
-      // Step 1: Handle amount input
-      if (!depositState.amount) {
-        const amount = text.trim();
+    // Step 1: Handle amount input
+    if (!depositState.amount) {
+      const amount = text.trim();
 
-        // Validate amount
-        if (isNaN(parseFloat(amount))) {
-          return ctx.reply("Invalid amount. Please enter a valid number.");
-        }
-
-        // Save the amount in the session
-        depositState.amount = amount;
-
-        // Prompt the user to select a chain
-        await ctx.reply(
-          "Select the chain:",
-          Markup.inlineKeyboard(
-            chains.map((chain) => [
-              Markup.button.callback(chain.name, `select_chain_${chain.id}`),
-            ])
-          )
-        );
+      // Validate amount
+      if (isNaN(parseFloat(amount))) {
+        return ctx.reply("Invalid amount. Please enter a valid number.");
       }
 
-      // Step 2: Handle source of funds input
-      else if (!depositState.sourceOfFunds) {
-        const sourceOfFunds = text.trim().toLowerCase();
+      // Save the amount in the session
+      depositState.amount = amount;
 
-        // Validate source of funds
-        if (!validSourceOfFunds.includes(sourceOfFunds as SourceOfFunds)) {
-          return ctx.reply(
-            `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
-              ", "
-            )}`
-          );
-        }
-
-        // Save the source of funds in the session
-        depositState.sourceOfFunds = sourceOfFunds;
-
-        // Confirm the deposit details
-        await ctx.reply(
-          `You are about to deposit ${depositState.amount} USD on ${
-            chains.find((chain) => chain.id === depositState.chainId)?.name
-          } (Chain ID: ${depositState.chainId}) with source of funds: ${
-            depositState.sourceOfFunds
-          }.\n\nAre you sure?`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback("Yes", "confirm_deposit")],
-            [Markup.button.callback("No", "cancel_deposit")],
-          ])
-        );
-      }
-    });
-
-    // Handle chain selection
-    bot.action(/select_chain_(.+)/, async (ctx) => {
-      const chainId = parseInt(ctx.match[1]); // Extract chain ID from the callback data
-
-      // Save the chain ID in the session
-      depositState.chainId = chainId;
-
-      // Prompt the user to enter the source of funds
+      // Prompt the user to select a chain
       await ctx.reply(
-        "Please enter the source of funds (e.g., savings, salary):"
+        "Select the chain:",
+        Markup.inlineKeyboard(
+          chains.map((chain) => [
+            Markup.button.callback(chain.name, `select_chain_${chain.id}`),
+          ])
+        )
       );
-    });
+    }
 
-    // Handle deposit confirmation
-    bot.action("confirm_deposit", async (ctx) => {
-      const userId = ctx.from.id.toString();
-      const token = await getUserData(userId);
+    // Step 2: Handle source of funds input
+    else if (!depositState.sourceOfFunds) {
+      const sourceOfFunds = text.trim().toLowerCase();
 
-      if (!token) {
-        return ctx.reply("Please log in first using /login.");
+      // Validate source of funds
+      if (!validSourceOfFunds.includes(sourceOfFunds as SourceOfFunds)) {
+        return ctx.reply(
+          `Invalid source of funds. Supported values: ${validSourceOfFunds.join(
+            ", "
+          )}`
+        );
       }
 
-      try {
-        // Construct the payload
-        const payload = {
-          amount: formatAmount(depositState.amount),
-          sourceOfFunds: depositState.sourceOfFunds,
-          depositChainId: depositState.chainId,
-        };
+      // Save the source of funds in the session
+      depositState.sourceOfFunds = sourceOfFunds;
 
-        // Initiate the deposit
-        const deposit = await depositFunds(
-          token.accessToken,
-          payload as unknown as depositFundsPayload
-        );
+      // Confirm the deposit details
+      await ctx.reply(
+        `You are about to deposit ${depositState.amount} USD on ${
+          chains.find((chain) => chain.id === depositState.chainId)?.name
+        } (Chain ID: ${depositState.chainId}) with source of funds: ${
+          depositState.sourceOfFunds
+        }.\n\nAre you sure?`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("Yes", "confirm_deposit")],
+          [Markup.button.callback("No", "cancel_deposit")],
+        ])
+      );
+    }
+  });
 
-        // Format the deposit details
-        const depositDetails = `
+  // Handle chain selection
+  bot.action(/select_chain_(.+)/, async (ctx) => {
+    const chainId = parseInt(ctx.match[1]); // Extract chain ID from the callback data
+
+    // Save the chain ID in the session
+    depositState.chainId = chainId;
+
+    // Prompt the user to enter the source of funds
+    await ctx.reply(
+      "Please enter the source of funds (e.g., savings, salary):"
+    );
+  });
+
+  // Handle deposit confirmation
+  bot.action("confirm_deposit", async (ctx) => {
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    try {
+      // Construct the payload
+      const payload = {
+        amount: formatAmount(depositState.amount),
+        sourceOfFunds: depositState.sourceOfFunds,
+        depositChainId: depositState.chainId,
+      };
+
+      // Initiate the deposit
+      const deposit = await depositFunds(
+        token.accessToken,
+        payload as unknown as depositFundsPayload
+      );
+
+      // Format the deposit details
+      const depositDetails = `
             ✅ **Deposit Initiated Successfully!**
         
             **Deposit ID**: \`${deposit.id}\`
             **Status**: ${deposit.status}
             **Amount**: ${Number(deposit.amount) / 100_000_000} ${
-          deposit.currency
-        }
+        deposit.currency
+      }
             **Chain ID**: ${depositState.chainId}
         
             **Source Account**:
@@ -989,33 +1023,146 @@ export const depositCallback = async (
             **Fees**: ${deposit.totalFee} ${deposit.feeCurrency}
           `;
 
-        // Send the deposit details
-        await ctx.replyWithMarkdownV2(depositDetails, {
-          link_preview_options: { is_disabled: true },
+      // Send the deposit details
+      await ctx.replyWithMarkdownV2(depositDetails, {
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Open Deposit Link",
+                url: deposit.transactions[0].depositUrl,
+              },
+            ],
+          ],
+        },
+      });
+
+      // Reset the deposit state
+      depositState = { chainId: 0, amount: "", sourceOfFunds: "" };
+    } catch (error) {
+      console.error("Deposit error:", error);
+      await ctx.reply("Failed to initiate deposit. Please try again.");
+      depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
+    }
+  });
+
+  // Handle deposit cancellation
+  bot.action("cancel_deposit", (ctx) => {
+    ctx.reply("Deposit canceled.");
+    depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
+  });
+};
+
+export const receiveCallback = async (
+  bot: Telegraf<MyContext>,
+  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>
+) => {
+  if (!ctx.from) return ctx.reply("Invalid user."); // Handle undefined 'from'
+  const userId = ctx.from.id.toString();
+  try {
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    const wallet = await getWalletDefault(token.accessToken);
+
+    if (!wallet) {
+      return ctx.reply("No default wallet found.");
+    }
+
+    const networkName =
+      chains.find((el) => el.id.toString() === wallet.network)?.name ||
+      "unknown";
+
+    const formattedBalances = `*Your Wallet*\n🌐 *Network*: ${networkName}\n🔗 *Address*: ${
+      wallet.walletAddress || "unknown"
+    }\n🪪 Wallet ID: ${wallet.id || "unknown"}`;
+
+    await ctx.reply(escapeMarkdownV2(formattedBalances), {
+      parse_mode: "MarkdownV2",
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            "Get QR Code",
+            `get_qr_${wallet.walletAddress}`
+          ),
+        ],
+      ]).reply_markup,
+    });
+  } catch (error) {
+    console.error("Error fetching wallet details:", error);
+    await ctx.reply("Failed to fetch wallet details. Please try again.");
+  }
+
+  // Handle QR code generation
+  bot.action(/get_qr_(.+)/, async (ctx) => {
+    const walletAddress = ctx.match[1]; // Extract wallet address from the callback data
+    const userId = ctx.from.id.toString();
+    const token = await getUserData(userId);
+
+    if (!token) {
+      return ctx.reply("Please log in first using /login.");
+    }
+
+    try {
+      const wallet = await getWalletDefault(token.accessToken);
+
+      if (!wallet) {
+        return ctx.reply("No default wallet found.");
+      }
+
+      // Generate QR code for the wallet address
+      const qrCode = await QRCode.toBuffer(walletAddress, {
+        errorCorrectionLevel: "H",
+        type: "png",
+        width: 400,
+        margin: 2,
+      });
+
+      const networkName =
+        chains.find((el) => el.id.toString() === wallet.network)?.name ||
+        "unknown";
+
+      // Create caption with wallet address
+      const caption =
+        `📥 **Deposit Address**\n\n` +
+        `Network: ${networkName}\n` +
+        `Address: \`${walletAddress}\`\n\n` +
+        `Scan the QR code or copy the address above to send funds`;
+
+      // Send QR code and address to the user
+      await ctx.replyWithPhoto(
+        { source: qrCode },
+        {
+          caption: caption,
+          parse_mode: "MarkdownV2",
           reply_markup: {
             inline_keyboard: [
               [
                 {
-                  text: "Open Deposit Link",
-                  url: deposit.transactions[0].depositUrl,
+                  text: "Copy Address",
+                  callback_data: `copy_address_${walletAddress}`,
                 },
               ],
             ],
           },
-        });
+        }
+      );
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      await ctx.reply("Failed to generate QR code. Please try again.");
+    }
+  });
 
-        // Reset the deposit state
-        depositState = { chainId: 0, amount: "", sourceOfFunds: "" };
-      } catch (error) {
-        console.error("Deposit error:", error);
-        await ctx.reply("Failed to initiate deposit. Please try again.");
-        depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
-      }
+  // Handle copy address button
+  bot.action(/copy_address_(.+)/, async (ctx) => {
+    const walletAddress = ctx.match[1];
+    await ctx.answerCbQuery();
+    await ctx.reply(`Here's your wallet address:\n\`${walletAddress}\``, {
+      parse_mode: "MarkdownV2",
     });
-
-    // Handle deposit cancellation
-    bot.action("cancel_deposit", (ctx) => {
-      ctx.reply("Deposit canceled.");
-      depositState = { chainId: 0, amount: "", sourceOfFunds: "" }; // Reset the deposit state
-    });
-  }
+  });
+};
