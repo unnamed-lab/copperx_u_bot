@@ -5,7 +5,7 @@
 The **Copperx Telegram Bot** is a powerful tool designed to simplify stablecoin transactions for individuals and businesses. Built to integrate seamlessly with **Copperx Payout's API**, this bot allows users to **deposit**, **withdraw**, and **transfer USDC** directly through Telegram, eliminating the need to visit the Copperx web app. The bot is developed using **TypeScript/Node.js** and adheres to best practices for clean, maintainable, and secure code.
 
 **Live Bot**: [https://t.me/copperx_u_bot](https://t.me/copperx_u_bot)  
-**Server Deployment**: [On Render](https://copperx-u-bot.onrender.com)
+**Server Deployment**: [On Render](https://copperx-u-bot.onrender.com) and [On Vercel](https://copperx-u-bot.vercel.app/)
 
 ---
 
