@@ -59,12 +59,12 @@ const helpMessage = escapeMarkdownV2(
   "🛠️ *Copperx Bot Help* 🛠️\n\n" +
     "Here are the commands you can use:\n\n" +
     "🔐 *Authentication*\n" +
-    "`/login` - Log in with your email.\n\n" +
+    "`/login` - Log in with your email.\n" +
+    "`/logout` - Log out your account.\n\n" +
     "💼 *Wallet Management*\n" +
     "`/balance` - Check your wallet balances.\n" +
-    "`/wallets` - View your wallet details.\n" +
-    "`/wallet` - View and set a default wallet.\n" +
-    "`/receive` - Get your wallet address and QR code.\n\n" +
+    "`/wallets` - View your wallet details and set a default wallet.\n" +
+    "`/wallet` - Get your wallet address and QR code.\n\n" +
     "💸 *Transfers*\n" +
     "`/send` - Send funds to an email.\n" +
     "`/transfer` - Initiate a transfer (wallet, email, or off-ramp).\n" +
