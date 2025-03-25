@@ -240,6 +240,16 @@ export interface CreateOfframpTransferDto {
   note: string;
 }
 
+export interface OfframpQuoteRequestDto {
+    amount: string;
+    sourceCountry: Country;
+    destinationCountry: Country;
+    onlyRemittance: boolean;
+    preferredBankAccountId?: string;
+    currency: Currency;
+}
+
+
 // Define the TransferAccountDto interface
 export interface TransferAccountDto {
   id: string;
