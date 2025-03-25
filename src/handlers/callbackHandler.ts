@@ -39,6 +39,7 @@ import {
   SourceOfFunds,
 } from "../types/transactions";
 import QRCode from "qrcode";
+import { AuthService } from "../services/authService";
 
 /**
  * Generates a help message for the Copperx Bot with a list of available commands.
@@ -1165,4 +1166,81 @@ export const receiveCallback = async (
       parse_mode: "MarkdownV2",
     });
   });
+};
+
+export const profileCallback = async (
+  bot: Telegraf<MyContext>,
+  ctx: MyContext<Update.CallbackQueryUpdate<CallbackQuery>>
+) => {
+  try {
+    if (!ctx.from) return ctx.reply("Invalid user."); // Handle undefined 'from'
+
+    const userId = ctx.from.id.toString();
+    const userToken = await getUserData(userId);
+
+    if (!userToken) {
+      return ctx.reply("You need to login first. Use /login command.");
+    }
+
+    // Show loading message
+    const loadingMsg = await ctx.reply("Fetching your profile...");
+
+    // Get profile data
+    const profile = await AuthService.getProfile(userToken.accessToken);
+
+    // Format profile information
+    const profileText = `
+👤 Profile Information
+
+🆔 ID: ${profile.id}
+📧 Email: ${profile.email}
+👥 Name: ${profile.firstName + " " + profile.lastName || "Not set"} ${
+      profile.lastName || ""
+    }
+🏢 Organization: ${profile.organizationId}
+🎭 Role: ${profile.role.toUpperCase()}
+🔒 Status: ${profile.status.toUpperCase()}
+📇 Type: ${profile.type.toUpperCase()}
+
+💼 Wallet Details
+├─ 🏷️ Type: ${profile.walletAccountType.toUpperCase()}
+├─ 🏦 Address: \`${profile.walletAddress}\`
+└─ 🆔 Wallet ID: ${profile.walletId}
+
+🚀 Relayer Address: \`${profile.relayerAddress}\`
+${
+  profile.flags?.length
+    ? `🏷️ Flags: ${profile.flags
+        .map((el) => el.replace("_", " ").toUpperCase())
+        .join(", ")}`
+    : ""
+}
+      `.trim();
+
+    // Delete loading message
+    await ctx.deleteMessage(loadingMsg.message_id);
+
+    // Send profile with menu button
+    await ctx.reply(
+      profileText,
+      Markup.inlineKeyboard([
+        Markup.button.url(
+          "🖼️ View Profile Image",
+          profile.profileImage ||
+            "https://github.com/user-attachments/assets/f323d2ec-7c14-44ba-89ee-bcdc4515a182"
+        ),
+        Markup.button.callback("🔄 Refresh", "refresh_profile"),
+      ])
+    );
+
+    // Handle refresh button
+    bot.action("refresh_profile", async (ctx) => {
+      await ctx.answerCbQuery("Refreshing profile...");
+      await ctx.deleteMessage();
+      await profileCallback(bot, ctx);
+    });
+  } catch (error) {
+    console.error("Profile error:", error);
+    ctx.reply("Failed to fetch profile. Please try again later.");
+  }
 };

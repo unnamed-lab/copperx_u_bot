@@ -28,3 +28,20 @@ export interface Customer {
   email: string;
   country: string;
 }
+
+export interface AuthUserDto {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  profileImage?: string;
+  organizationId: string;
+  role: 'owner' | 'user' | 'admin' | 'member';
+  status: 'pending' | 'active' | 'suspended';
+  type: 'individual' | 'business';
+  relayerAddress: string;
+  flags?: string[];
+  walletAddress: string;
+  walletId: string;
+  walletAccountType: string;
+}
