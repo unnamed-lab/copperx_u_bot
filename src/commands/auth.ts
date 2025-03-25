@@ -1,7 +1,14 @@
 import { Markup, Telegraf } from "telegraf";
 import { MyContext } from "../types/context";
 import { AuthService } from "../services/authService";
-import { getUserData, setOTPData, UserRedis } from "../libs/redis";
+import {
+  getAuthAttempts,
+  getUserData,
+  resetAuthAttempts,
+  setAuthAttempts,
+  setOTPData,
+  UserRedis,
+} from "../libs/redis";
 import { getWalletDefaultBalance } from "../libs/utils";
 import { getKycDetails } from "../libs/kyc";
 import {
@@ -72,6 +79,11 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
 
     const userId = ctx.from.id.toString(); // Get user ID
     const userToken = await getUserData(userId); // Fetch user data
+    const attempts = (await getAuthAttempts(userId)) || {
+      count: 0,
+      lastAttempt: 0,
+    };
+    const remainingAttempts = 5 - attempts.count;
 
     if (userToken) {
       ctx.reply("User is already logged in."); // Prompt user
@@ -79,13 +91,24 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
       return;
     }
 
+    // Get current attempts
+
     // Prompt the user to enter their email
     await ctx.reply("Please enter your email address:");
 
     // Handle email input
     bot.hears(/.*/, async (ctx) => {
       const text = ctx.message.text;
-      console.log({ text });
+
+      // Update attempts count
+      const attempts = (await getAuthAttempts(userId)) || {
+        count: 0,
+        lastAttempt: 0,
+      };
+      await setAuthAttempts(userId, {
+        count: attempts.count + 1,
+        lastAttempt: Date.now(),
+      });
 
       // Step 1: Handle email input
       if (!loginState.email) {
@@ -94,7 +117,9 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
         // Validate email (basic check)
         if (!email.includes("@")) {
           return ctx.reply(
-            "Invalid email. Please enter a valid email address."
+            `Invalid email. Please enter a valid email address.\n${
+              remainingAttempts - 1
+            } attempts remaining.`
           );
         }
 
@@ -141,15 +166,13 @@ export const authCommand = (bot: Telegraf<MyContext>) => {
 
         try {
           await logResponse(ctx, token);
-
+          await resetAuthAttempts(userId); // Reset the auth attempts
           loginState = { email: "", sid: "" }; // Reset the login state
-
           return;
         } catch (error) {
           console.error("Error verifying OTP:", error);
           await ctx.reply("Invalid OTP. Please try again.");
           loginState = { email: "", sid: "" }; // Reset the login state
-
           return;
         }
       }
