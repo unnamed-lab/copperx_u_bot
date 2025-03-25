@@ -19,14 +19,12 @@ export const kycCommand = async (bot: Telegraf<MyContext>) => {
       // Fetch KYC details for the user
       const kycResponse = await getKycDetails(token.accessToken, token.user.id);
 
-      console.log("Response: ", kycResponse);
-
       if (!kycResponse) {
         // If no KYC is found, encourage the user to complete KYC
         // URL of the image you want to send
         const kycImageUrl =
           "https://github.com/user-attachments/assets/ac2546a2-7112-45bd-8189-a83b1150b957";
-          
+
         // Send the image with the detailed caption
         await ctx.replyWithPhoto(kycImageUrl, {
           caption: escapeMarkdownV2(
@@ -53,6 +51,7 @@ export const kycCommand = async (bot: Telegraf<MyContext>) => {
             ), // Add a button to the KYC page
           ]).reply_markup,
         });
+        return;
       }
 
       // If KYC is found, display the KYC details
@@ -60,7 +59,9 @@ export const kycCommand = async (bot: Telegraf<MyContext>) => {
       await ctx.reply(kycDetails, { parse_mode: "MarkdownV2" }); // Send the formatted details
     } catch (error) {
       console.error("Error fetching KYC details:", error); // Log errors
-      ctx.reply("❌ Failed to fetch KYC details. Please try again later."); // Notify user of failure
+      await ctx.reply(
+        "❌ Failed to fetch KYC details. Please try again later."
+      ); // Notify user of failure
     }
   });
 };

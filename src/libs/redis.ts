@@ -86,6 +86,34 @@ const deleteUserData = async (userId: string) => {
   });
 };
 
+const getAuthAttempts = async (
+  userId: string
+): Promise<{
+  count: number;
+  lastAttempt: number;
+  cooldownUntil?: number;
+} | null> => {
+  const data = await redisClient.get(`auth_attempts:${userId}`);
+  return data ? JSON.parse(data) : null;
+};
+
+const setAuthAttempts = async (
+  userId: string,
+  attempts: {
+    count: number;
+    lastAttempt: number;
+    cooldownUntil?: number;
+  }
+) => {
+  await redisClient.set(`auth_attempts:${userId}`, JSON.stringify(attempts), {
+    EX: 60 * 60, // Expire after 1 hour
+  });
+};
+
+const resetAuthAttempts = async (userId: string) => {
+  await redisClient.del(`auth_attempts:${userId}`);
+};
+
 ////////////////////////////////////////
 
 export {
@@ -96,4 +124,7 @@ export {
   setUserData,
   getUserData,
   deleteUserData,
+  getAuthAttempts,
+  setAuthAttempts,
+  resetAuthAttempts,
 };

@@ -207,30 +207,6 @@ export const formatBalances = (balances: WalletBalances[]) => {
   return formattedMessage;
 };
 
-// export const formatBalances = (balances: any[]) => {
-//   let formattedMessage = "*Your Balances* 💰\n\n";
-
-//   balances.forEach((wallet) => {
-//     const { network, balances: walletBalances } = wallet;
-
-//     formattedMessage += `🌐 *Network*: ${escapeMarkdownV2(network)}\n`;
-
-//     walletBalances.forEach((balance: any) => {
-//       const { symbol, balance: amount, decimals, address } = balance;
-//       const formattedAmount = (
-//         parseInt(amount) / Math.pow(10, decimals)
-//       ).toFixed(2);
-//       formattedMessage += `🔗 *Address*: ${address}\n💵 ${escapeMarkdownV2(
-//         symbol
-//       )}: ${escapeMarkdownV2(formattedAmount)}\n`;
-//     });
-
-//     formattedMessage += "\n";
-//   });
-
-//   return formattedMessage;
-// };
-
 //////////////////////////////////
 //////////////////////////////////
 
